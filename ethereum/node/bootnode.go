@@ -45,12 +45,12 @@ func main() {
 		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
 		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
-
+		peernode = flag.String("peer", "", "add peer")
 		nodeKey *ecdsa.PrivateKey
 		err     error
 	)
+	Bootnodes := []*discover.Node{}
 	flag.Parse()
-
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.Lvl(*verbosity))
 	glogger.Vmodule(*vmodule)
@@ -83,12 +83,18 @@ func main() {
 			utils.Fatalf("-nodekeyhex: %v", err)
 		}
 	}
-
 	if *writeAddr {
 		fmt.Printf("%v\n", discover.PubkeyID(&nodeKey.PublicKey))
 		os.Exit(0)
 	}
-
+	if *peernode != "" {
+		if n,err := discover.ParseNode(*peernode); err != nil {
+			utils.Fatalf("-peer: %v", err)
+		} else {
+			Bootnodes = append(Bootnodes,n) 
+		}
+		fmt.Println("peer",*peernode)
+	}
 	var restrictList *netutil.Netlist
 	if *netrestrict != "" {
 		restrictList, err = netutil.ParseNetlist(*netrestrict)
@@ -122,11 +128,15 @@ func main() {
 			utils.Fatalf("%v", err)
 		}
 	} else {
+		
+		
 		cfg := discover.Config{
 			PrivateKey:   nodeKey,
 			AnnounceAddr: realaddr,
 			NetRestrict:  restrictList,
+			Bootnodes: Bootnodes[:],
 		}
+		
 		if _, err := discover.ListenUDP(conn, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
