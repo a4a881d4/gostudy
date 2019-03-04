@@ -71,11 +71,27 @@ func(curve *ECC) FieldMul(a, b *big.Int) (*big.Int) {
 }
 
 func(curve *ECC) FieldDiv(a, b *big.Int) (*big.Int) {
-  z := new(big.Int)
-  c := new(big.Int)
-  z.ModInverse(b,&curve.P)
-  c.Mul(a,z)
+  z := curve.Inverse(b)
+  c := new(big.Int).Mul(a,z)
   return curve.FieldNormal(c)
+}
+
+func(curve *ECC) Sqrt(x *big.Int) (*big.Int) {
+  s := big.NewInt(1)
+  s.Add(s,&curve.P)
+  s.Rsh(s,2)
+  r := new(big.Int)
+  r.Set(x)
+  r.Exp(r,s,&curve.P)
+  return r
+}
+
+func(curve *ECC) Inverse(x *big.Int) (*big.Int) {
+  s := new(big.Int).Set(&curve.P)
+  s.Sub(s,big.NewInt(2))
+  r := new(big.Int).Set(x)
+  r.Exp(r,s,&curve.P)
+  return r
 }
 
 func(curve *ECC) NewPoint(x *big.Int) (*ECPoint) {
@@ -84,7 +100,7 @@ func(curve *ECC) NewPoint(x *big.Int) (*ECPoint) {
   c := curve.FieldMul(x,x)
   c = curve.FieldMul(c,x)
   c = curve.FieldAdd(c,&curve.A)
-  p.Y.ModSqrt(c,&curve.P)
+  p.Y = *(curve.Sqrt(c))
   return p   
 }
 
