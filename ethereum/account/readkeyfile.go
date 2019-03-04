@@ -29,6 +29,10 @@ func main() {
 					fmt.Println(key.PrivateKey.D.Text(16))
 				}
 			}
+		} else {
+			// fmt.Println(address.Sub(a.Address.Big(), address))
+			fmt.Println(i)
 		}
+
 	}
 }
