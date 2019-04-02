@@ -8,6 +8,7 @@ import (
   "fmt"
   "bytes"
   "crypto/ecdsa"
+  "encoding/binary"
 
   _ "github.com/ethereum/go-ethereum/common"
   "github.com/ethereum/go-ethereum/rlp"
@@ -181,13 +182,16 @@ func main() {
   if err != nil {
     fmt.Println("err", err)
   }
-  blob, err := db.Get(nodeDBVersionKey, nil)
+  blob, _ := db.Get(nodeDBVersionKey, nil)
   fmt.Println("Version", blob)
-    it := db.NewIterator(util.BytesPrefix(nodeDBItemPrefix), nil)
+  
+  it := db.NewIterator(util.BytesPrefix(nodeDBItemPrefix), nil)
   for it.Next() {
     id, ip, rest := splitNodeItemKey(it.Key())
+    time, _ := db.Get(it.Key(),nil)
     if ip != nil {
-      // fmt.Println("id",id.String(),"ip",ip,"field",rest)
+      val, _ := binary.Varint(time)
+      fmt.Println("id",id.String(),ip,rest,val)
     } else {
       blob, err := db.Get(nodeKey(id),nil)
       fmt.Println("find_node",id.String(),ip,rest)
