@@ -356,6 +356,16 @@ func wrapError(err error, ctx string) error {
 func (err *decodeError) Error() string {
   return fmt.Sprintf("%v (decode path: %s)", err.what, strings.Join(err.stack, "<-"))
 }
+// secureKeyPrefix is the database key prefix used to store trie node preimages.
+var secureKeyPrefix = []byte("secure-key-")
+
+// secureKeyLength is the length of the above prefix + 32byte hash.
+const secureKeyLength = 11 + 32
+// headerNumberKey = headerNumberPrefix + hash
+func SecureKey(hash common.Hash) []byte {
+  return append(secureKeyPrefix, hash.Bytes()...)
+}
+
 func main() {
 
   opts := &opt.Options{OpenFilesCacheCapacity: 5}
@@ -367,7 +377,7 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 0x1279e7;number<0x1279e7+1;number++ { //0x12d8c2
+  for number = 0x1272c2;number<0x1272c2+1;number++ { //0x12d8c2 number=1304924
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       hash := common.BytesToHash(blob)
       data, _ := db.Get(headerKey(number, hash),nil)
@@ -383,25 +393,43 @@ func main() {
         fmt.Println(string(str))
         str,_  = body.Transactions[0].MarshalJSON()
         fmt.Println(string(str))
-        root,_ := db.Get(h.Root.Bytes(),nil)
-        buf := bytes.NewBuffer(root)
-        // node,rest,err := decodeRef(root,10)
-        // fmt.Println(node,rest,err)
-        s := rlp.NewStream(buf, 0)
-        for {
-          if err := dump(s, 0); err != nil {
-            if err != io.EOF {
+      }
+      {
+        root,_ := db.Get(h.Root[:],nil)
+        if len(root)>0 {
+          str,_ := h.MarshalJSON()
+          fmt.Println(string(str))
+          buf := bytes.NewBuffer(root)
+          s := rlp.NewStream(buf, 0)
+          for {
+            if err := dump(db, s, 0); err != nil {
+              if err != io.EOF {
+              }
+              break
             }
-            break
+            fmt.Println()
           }
-          fmt.Println()
         }
+        
       }
     }
   }
   db.Close()
 }
-func dump(s *rlp.Stream, depth int) error {
+func dumpKey(db *leveldb.DB, hash []byte, depth int) {
+  root,_ := db.Get(hash,nil)
+  buf := bytes.NewBuffer(root)
+  s := rlp.NewStream(buf, 0)
+  for {
+    if err := dump(db, s, depth+1); err != nil {
+      if err != io.EOF {
+      }
+      break
+    }
+    fmt.Println()
+  }  
+}
+func dump(db *leveldb.DB, s *rlp.Stream, depth int) error {
   kind, size, err := s.Kind()
   if err != nil {
     return err
@@ -416,6 +444,7 @@ func dump(s *rlp.Stream, depth int) error {
       fmt.Printf("%s%q", ws(depth), str)
     } else {
       fmt.Printf("%s%x", ws(depth), str)
+      dumpKey(db,str,depth)
     }
   case rlp.List:
     s.List()
@@ -428,7 +457,7 @@ func dump(s *rlp.Stream, depth int) error {
         if i > 0 {
           fmt.Print(",\n")
         }
-        if err := dump(s, depth+1); err == rlp.EOL {
+        if err := dump(db, s, depth+1); err == rlp.EOL {
           break
         } else if err != nil {
           return err
