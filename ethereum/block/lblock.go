@@ -141,24 +141,21 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 0x12d8c2;number<0x12d8c2+1;number++ {
+  for number = 0;number<0x12d8c2+1;number++ { //0x12d8c2
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       hash := common.BytesToHash(blob)
-//      fmt.Println(number,hash.Hex())
       data, _ := db.Get(headerKey(number, hash),nil)
       var h types.Header
       err := rlp.DecodeBytes(data, &h)
 
       if err == nil {
-//        str,_ := h.MarshalJSON()
-        // fmt.Println(string(str))
       }
       body := ReadBody(db,hash,number)
       if(len(body.Transactions)>0){
-	str,_ := h.MarshalJSON()
+        str,_ := h.MarshalJSON()
         fmt.Println(string(str))
         str,_  = body.Transactions[0].MarshalJSON()
-	fmt.Println(string(str))
+        fmt.Println(string(str))
       }
     }
   }
