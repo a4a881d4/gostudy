@@ -125,7 +125,7 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 0;number<1024;number++ {
+  for number = 1024;number<1025;number++ {
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       hash := common.BytesToHash(blob)
       fmt.Println(number,hash.Hex())
