@@ -6,18 +6,19 @@ import (
   "fmt"
   "bytes"
   "strings"
-  "encoding/hex"
-  "golang.org/x/crypto/sha3"
+  _ "encoding/hex"
+  _ "golang.org/x/crypto/sha3"
 
   "encoding/binary"
   "github.com/ethereum/go-ethereum/common"
-  "github.com/ethereum/go-ethereum/crypto"
+  _ "github.com/ethereum/go-ethereum/crypto"
   
   _ "github.com/ethereum/go-ethereum/common/hexutil"
   
   "github.com/ethereum/go-ethereum/core/types"
 
   "github.com/ethereum/go-ethereum/rlp"
+  "github.com/ethereum/go-ethereum/trie"
 
   "github.com/syndtr/goleveldb/leveldb"
   "github.com/syndtr/goleveldb/leveldb/opt"
@@ -394,7 +395,7 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 1304144;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 0x1279e7;number<0x1279e7+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       hash := common.BytesToHash(blob)
       data, _ := db.Get(headerKey(number, hash),nil)
@@ -403,37 +404,42 @@ func main() {
       if err == nil {
         body := ReadBody(db,hash,number)
         if(len(body.Transactions)>0){
-
+          var txs types.Transactions
+          txs = body.Transactions
+          tr := Derive(txs)
+          hash := types.DeriveSha(txs)
+          dumpTrie(tr,hash.Bytes())
+          // it := trie.NewIterator(tr.NodeIterator(nil))
+          // for it.Next() {
+          //   fmt.Printf("%x\n",it.Value)
+          // }
+          // fmt.Printf("%x-%x\n",hashT.Bytes(),h.TxHash.Bytes())
           str,_ := h.MarshalJSON()
           fmt.Println(string(str))
-          str,_  = body.Transactions[0].MarshalJSON()
-          fmt.Println(string(str))
-        }
-        err := dumpKey(db,h.Root.Bytes(),0,[]byte{})
-        if(err == nil) {
-          fmt.Printf("find@%d,%x\n",number,h.Root.Bytes())
+          for _,t := range(body.Transactions) {
+            str,_  = t.MarshalJSON()
+            fmt.Println(string(str))
+          }
         }
       }
     }
   }
-  sr,_ := hex.DecodeString("788fc1309fa51524b266c6b0451328f7ac246540506f5adc83fa74e598c4d537")
-  fmt.Printf("%x\n",sr)
-  address,_ := hex.DecodeString("637c874e326904b99e4136f69321337a4b00bd82")
-  addHash := crypto.Keccak256Hash(address[:])
-  fmt.Printf("addHash: %x\n",addHash)
-  var hasher = sha3.NewLegacyKeccak256()
-  hasher.Write(address)
-  key := hasher.Sum(nil)
-  fmt.Printf("%x\n",key)
-  _,err = db.Get(sr,nil)
-  if err!=nil {
-    fmt.Println(err)
-  } else {
-    // fmt.Println(root)
-    dumpKey(db,sr,0,[]byte{})
-  }
   db.Close()
 }
+
+func dumpBlob(db *leveldb.DB, blob []byte) {
+  buf := bytes.NewBuffer(blob)
+  s := rlp.NewStream(buf, 0)
+  for {
+    if err := rlpdump(db, s, 0); err != nil {
+      if err != io.EOF {
+      }
+      break
+    }
+    fmt.Println()
+  }
+}
+
 func toString(s []byte) string {
   r := ""
   for _,n := range s {
@@ -552,4 +558,27 @@ func isASCII(b []byte) bool {
 
 func ws(n int) string {
   return strings.Repeat("  ", n)
+}
+
+func Derive(list types.DerivableList) *trie.Trie {
+  keybuf := new(bytes.Buffer)
+  trie := new(trie.Trie)
+  for i := 0; i < list.Len(); i++ {
+    keybuf.Reset()
+    rlp.Encode(keybuf, uint(i))
+    trie.Update(keybuf.Bytes(), list.GetRlp(i))
+  }
+  return trie
+}
+
+func dumpTrie(t *trie.Trie, root []byte) {
+  if blob,err := t.TryGet([]byte{0x80}); err == nil {
+    if node,err := decodeNode(root,blob,0); err == nil {
+      fmt.Println(node.fstring(""))
+    } else {
+      fmt.Println("node ",err,blob)
+    }
+  } else {
+    fmt.Println("blob ",err)
+  }
 }
