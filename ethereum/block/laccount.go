@@ -6,10 +6,9 @@ import (
   "fmt"
   "bytes"
   "strings"
-  "encoding/hex"
-  "golang.org/x/crypto/sha3"
-
+  "math/big"
   "encoding/binary"
+  "encoding/hex"
   "github.com/ethereum/go-ethereum/common"
   "github.com/ethereum/go-ethereum/crypto"
   
@@ -28,18 +27,6 @@ var (
   // databaseVerisionKey tracks the current database version.
   databaseVerisionKey = []byte("DatabaseVersion")
 
-  // headHeaderKey tracks the latest know header's hash.
-  headHeaderKey = []byte("LastHeader")
-
-  // headBlockKey tracks the latest know full block's hash.
-  headBlockKey = []byte("LastBlock")
-
-  // headFastBlockKey tracks the latest known incomplete block's hash during fast sync.
-  headFastBlockKey = []byte("LastFast")
-
-  // fastTrieProgressKey tracks the number of trie entries imported during fast sync.
-  fastTrieProgressKey = []byte("TrieSync")
-
   // Data item prefixes (use single byte to avoid mixing data types, avoid `i`, used for indexes).
   headerPrefix       = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
   headerTDSuffix     = []byte("t") // headerPrefix + num (uint64 big endian) + hash + headerTDSuffix -> td
@@ -49,14 +36,8 @@ var (
   blockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
   blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
 
-  txLookupPrefix  = []byte("l") // txLookupPrefix + hash -> transaction/receipt lookup metadata
-  bloomBitsPrefix = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
-
   preimagePrefix = []byte("secure-key-")      // preimagePrefix + hash -> preimage
   configPrefix   = []byte("ethereum-config-") // config prefix for the db
-
-  // Chain index prefixes (use `i` + single byte to avoid mixing data types).
-  BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
 
 )
 
@@ -91,26 +72,6 @@ func blockBodyKey(number uint64, hash common.Hash) []byte {
   return append(append(blockBodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
-// blockReceiptsKey = blockReceiptsPrefix + num (uint64 big endian) + hash
-func blockReceiptsKey(number uint64, hash common.Hash) []byte {
-  return append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
-}
-
-// txLookupKey = txLookupPrefix + hash
-func txLookupKey(hash common.Hash) []byte {
-  return append(txLookupPrefix, hash.Bytes()...)
-}
-
-// bloomBitsKey = bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash
-func bloomBitsKey(bit uint, section uint64, hash common.Hash) []byte {
-  key := append(append(bloomBitsPrefix, make([]byte, 10)...), hash.Bytes()...)
-
-  binary.BigEndian.PutUint16(key[1:], uint16(bit))
-  binary.BigEndian.PutUint64(key[3:], section)
-
-  return key
-}
-
 // preimageKey = preimagePrefix + hash
 func preimageKey(hash common.Hash) []byte {
   return append(preimagePrefix, hash.Bytes()...)
@@ -120,10 +81,6 @@ func preimageKeyByte(hash []byte) []byte {
   return append(preimagePrefix, hash...)
 }
 
-// configKey = configPrefix + hash
-func configKey(hash common.Hash) []byte {
-  return append(configPrefix, hash.Bytes()...)
-}
 func ReadBodyRLP(db *leveldb.DB, hash common.Hash, number uint64) rlp.RawValue {
   data, _ := db.Get(blockBodyKey(number, hash),nil)
   return data
@@ -140,6 +97,7 @@ func ReadBody(db *leveldb.DB, hash common.Hash, number uint64) *types.Body {
   }
   return body
 }
+
 func keybytesToHex(str []byte) []byte {
   l := len(str)*2 + 1
   var nibbles = make([]byte, l)
@@ -150,6 +108,7 @@ func keybytesToHex(str []byte) []byte {
   nibbles[l-1] = 16
   return nibbles
 }
+
 func compactToHex(compact []byte) []byte {
   if len(compact) == 0 {
     return compact
@@ -167,6 +126,16 @@ func compactToHex(compact []byte) []byte {
 func hasTerm(s []byte) bool {
   return len(s) > 0 && s[len(s)-1] == 16
 }
+
+type Account struct {
+  Nonce    uint64
+  Balance  *big.Int
+  Root     common.Hash // merkle root of the storage trie
+  CodeHash []byte
+}
+
+type Storage map[common.Hash]big.Int
+
 var indices = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "[17]"}
 
 type node interface {
@@ -236,12 +205,15 @@ func (n *fullNode) fstring(ind string) string {
   }
   return resp + fmt.Sprintf("\n%s] ", ind)
 }
+
 func (n *shortNode) fstring(ind string) string {
   return fmt.Sprintf("{%x: %v} ", n.Key, n.Val.fstring(ind+"  "))
 }
+
 func (n hashNode) fstring(ind string) string {
   return fmt.Sprintf("<%x> ", []byte(n))
 }
+
 func (n valueNode) fstring(ind string) string {
   return fmt.Sprintf("%x ", []byte(n))
 }
@@ -364,15 +336,6 @@ func wrapError(err error, ctx string) error {
 func (err *decodeError) Error() string {
   return fmt.Sprintf("%v (decode path: %s)", err.what, strings.Join(err.stack, "<-"))
 }
-// secureKeyPrefix is the database key prefix used to store trie node preimages.
-var secureKeyPrefix = []byte("secure-key-")
-
-// secureKeyLength is the length of the above prefix + 32byte hash.
-const secureKeyLength = 11 + 32
-// headerNumberKey = headerNumberPrefix + hash
-func SecureKey(hash common.Hash) []byte {
-  return append(secureKeyPrefix, hash.Bytes()...)
-}
 
 func decodeHash(db *leveldb.DB, hash []byte, depth int) (node, error) {
   val,err := db.Get(hash,nil)
@@ -382,58 +345,6 @@ func decodeHash(db *leveldb.DB, hash []byte, depth int) (node, error) {
     return nil,err
   }
 }
-
-func main() {
-
-  opts := &opt.Options{OpenFilesCacheCapacity: 5}
-  path := os.Args[1]
-  db, err := leveldb.OpenFile(path, opts)
-  if err != nil {
-    fmt.Println("err", err)
-  }
-  blob, _ := db.Get(databaseVerisionKey, nil)
-  fmt.Println("Version", blob)
-  var number uint64
-  for number = 1304144;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
-    if blob,err := db.Get(headerHashKey(number),nil); err == nil {
-      hash := common.BytesToHash(blob)
-      data, _ := db.Get(headerKey(number, hash),nil)
-      var h types.Header
-      err := rlp.DecodeBytes(data, &h)
-      if err == nil {
-        body := ReadBody(db,hash,number)
-        if(len(body.Transactions)>0){
-
-          str,_ := h.MarshalJSON()
-          fmt.Println(string(str))
-          str,_  = body.Transactions[0].MarshalJSON()
-          fmt.Println(string(str))
-        }
-        err := dumpKey(db,h.Root.Bytes(),0,[]byte{})
-        if(err == nil) {
-          fmt.Printf("find@%d,%x\n",number,h.Root.Bytes())
-        }
-      }
-    }
-  }
-  sr,_ := hex.DecodeString("788fc1309fa51524b266c6b0451328f7ac246540506f5adc83fa74e598c4d537")
-  fmt.Printf("%x\n",sr)
-  address,_ := hex.DecodeString("637c874e326904b99e4136f69321337a4b00bd82")
-  addHash := crypto.Keccak256Hash(address[:])
-  fmt.Printf("addHash: %x\n",addHash)
-  var hasher = sha3.NewLegacyKeccak256()
-  hasher.Write(address)
-  key := hasher.Sum(nil)
-  fmt.Printf("%x\n",key)
-  _,err = db.Get(sr,nil)
-  if err!=nil {
-    fmt.Println(err)
-  } else {
-    // fmt.Println(root)
-    dumpKey(db,sr,0,[]byte{})
-  }
-  db.Close()
-}
 func toString(s []byte) string {
   r := ""
   for _,n := range s {
@@ -441,35 +352,32 @@ func toString(s []byte) string {
   }
   return r
 }
-func dump(db *leveldb.DB,n node,depth int,s []byte) {
+func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
   switch fn := n.(type) {
   case *fullNode:
     for i,h := range fn.Children {
       if h!=nil {
         fmt.Println(ws(depth)+"child ",toString(s))
-        dump(db,h,depth+1,append(s,byte(i)))
+        dump(db,h,depth+1,append(s,byte(i)),accounts)
       }
     }
   case *shortNode:
     fmt.Println(ws(depth)+"ShortNode",fn.String())
     k := hexToKeybytes(append(s,fn.Key...))
     fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",k))
-    dump(db,fn.Val,depth+1,s)
+    dump(db,fn.Val,depth+1,s,accounts)
+    var account Account
+    if val,ok := fn.Val.(valueNode); ok {
+      if err := rlp.DecodeBytes(val, &account); err == nil {
+        fmt.Println(account)
+        accounts[common.BytesToHash(k)] = *(account.Balance)
+      }
+    } 
   case hashNode:
     fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
-    dumpKey(db,fn,depth+1,s)
+    dumpKey(db,fn,depth+1,s,accounts)
   case valueNode:
     fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
-    buf := bytes.NewBuffer(fn)
-    s := rlp.NewStream(buf, 0)
-    for {
-      if err := rlpdump(db, s, 0); err != nil {
-        if err != io.EOF {
-        }
-        break
-      }
-      fmt.Println()
-    }
   }
 }
 
@@ -491,10 +399,10 @@ func decodeNibbles(nibbles []byte, bytes []byte) {
     bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
   }
 }
-func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte) error {
+func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte,accounts Storage) error {
   n,err := decodeHash(db,hash,0)
   if err==nil {
-    dump(db,n,depth,s)
+    dump(db,n,depth,s,accounts)
   } 
   return err 
 }
@@ -552,4 +460,37 @@ func isASCII(b []byte) bool {
 
 func ws(n int) string {
   return strings.Repeat("  ", n)
+}
+
+func main() {
+  opts := &opt.Options{OpenFilesCacheCapacity: 5}
+  path := os.Args[1]
+  db, err := leveldb.OpenFile(path, opts)
+  if err != nil {
+    fmt.Println("err", err)
+  }
+  blob, _ := db.Get(databaseVerisionKey, nil)
+  fmt.Println("Version", blob)
+  var number uint64
+  for number = 1304144;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+    if blob,err := db.Get(headerHashKey(number),nil); err == nil {
+      data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
+      var h types.Header
+      if err := rlp.DecodeBytes(data, &h); err == nil {
+        accounts := make(Storage)
+        dumpKey(db,h.Root.Bytes(),0,[]byte{},accounts)
+        for k,v := range(accounts) {
+          fmt.Printf("account(%x)=%d\n",k,&v)
+        }
+        address,_ := hex.DecodeString(os.Args[2])
+        addHash := crypto.Keccak256Hash(address[:])
+        if v,ok := accounts[addHash]; ok {
+          fmt.Println(os.Args[2]," has ",&v)
+        } else {
+          fmt.Println("Cannot find account ",os.Args[2])
+        }
+      }
+    }
+  }
+  db.Close()
 }
