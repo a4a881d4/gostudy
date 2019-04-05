@@ -4,6 +4,7 @@ import (
   "os"
   "io"
   "fmt"
+  "bytes"
   "strings"
   "math/big"
   "encoding/binary"
@@ -319,6 +320,17 @@ func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
       if err := rlp.DecodeBytes(val, &account); err == nil {
         // fmt.Println(account)
         accounts[common.BytesToHash(k)] = account
+      } else {
+        buf := bytes.NewBuffer(val)
+        s := rlp.NewStream(buf, 0)
+        for {
+          if err := rlpdump(db, s, depth+2); err != nil {
+            if err != io.EOF {
+            }
+            break
+          }
+          fmt.Println()
+        }
       }
     } 
   case hashNode:
@@ -327,6 +339,55 @@ func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
   case valueNode:
     fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
   }
+}
+func rlpdump(db *leveldb.DB, s *rlp.Stream, depth int) error {
+  kind, size, err := s.Kind()
+  if err != nil {
+    return err
+  }
+  switch kind {
+  case rlp.Byte, rlp.String:
+    str, err := s.Bytes()
+    if err != nil {
+      return err
+    }
+    if len(str) == 0 || isASCII(str) {
+      fmt.Printf("%s%q", ws(depth), str)
+    } else {
+      fmt.Printf("%s%x", ws(depth), str)
+      // dumpKey(db,str,depth)
+    }
+  case rlp.List:
+
+    s.List()
+    defer s.ListEnd()
+    if size == 0 {
+      fmt.Print(ws(depth) + "[]")
+    } else {
+      fmt.Println(ws(depth) + "[")
+      for i := 0; ; i++ {
+        if i > 0 {
+          fmt.Print(",\n")
+        }
+        if err := rlpdump(db, s, depth+1); err == rlp.EOL {
+          break
+        } else if err != nil {
+          return err
+        }
+      }
+      fmt.Print(ws(depth) + "]")
+    }
+  }
+  return nil
+}
+
+func isASCII(b []byte) bool {
+  for _, c := range b {
+    if c < 32 || c > 126 {
+      return false
+    }
+  }
+  return true
 }
 
 func hexToKeybytes(hex []byte) []byte {
@@ -372,7 +433,7 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 0;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 1209026;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
       var h types.Header
@@ -388,6 +449,15 @@ func main() {
             fmt.Println(os.Args[2]," has ",v.Balance)
           } else {
             fmt.Println("Cannot find account ",os.Args[2])
+          }
+          for k,v := range(accounts) {
+            if v.Root != emptyRoot {
+              if code,err := db.Get(v.CodeHash,nil); err==nil {
+                fmt.Println("Contract code: ",k[:8],code[:8])
+              }
+              nop := make(Storage)
+              dumpKey(db,v.Root.Bytes(),0,[]byte{},nop)
+            }
           }
         }
       }
