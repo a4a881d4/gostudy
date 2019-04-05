@@ -4,7 +4,6 @@ import (
   "os"
   "io"
   "fmt"
-  "bytes"
   "strings"
   "math/big"
   "encoding/binary"
@@ -12,15 +11,12 @@ import (
   "github.com/ethereum/go-ethereum/common"
   "github.com/ethereum/go-ethereum/crypto"
   
-  _ "github.com/ethereum/go-ethereum/common/hexutil"
-  
   "github.com/ethereum/go-ethereum/core/types"
 
   "github.com/ethereum/go-ethereum/rlp"
 
   "github.com/syndtr/goleveldb/leveldb"
   "github.com/syndtr/goleveldb/leveldb/opt"
-  _ "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var (
@@ -29,16 +25,9 @@ var (
 
   // Data item prefixes (use single byte to avoid mixing data types, avoid `i`, used for indexes).
   headerPrefix       = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
-  headerTDSuffix     = []byte("t") // headerPrefix + num (uint64 big endian) + hash + headerTDSuffix -> td
   headerHashSuffix   = []byte("n") // headerPrefix + num (uint64 big endian) + headerHashSuffix -> hash
   headerNumberPrefix = []byte("H") // headerNumberPrefix + hash -> num (uint64 big endian)
-
-  blockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
-  blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
-
-  preimagePrefix = []byte("secure-key-")      // preimagePrefix + hash -> preimage
-  configPrefix   = []byte("ethereum-config-") // config prefix for the db
-
+  emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 )
 
 func encodeBlockNumber(number uint64) []byte {
@@ -52,50 +41,9 @@ func headerKey(number uint64, hash common.Hash) []byte {
   return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
-// headerTDKey = headerPrefix + num (uint64 big endian) + hash + headerTDSuffix
-func headerTDKey(number uint64, hash common.Hash) []byte {
-  return append(headerKey(number, hash), headerTDSuffix...)
-}
-
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
 func headerHashKey(number uint64) []byte {
   return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
-}
-
-// headerNumberKey = headerNumberPrefix + hash
-func headerNumberKey(hash common.Hash) []byte {
-  return append(headerNumberPrefix, hash.Bytes()...)
-}
-
-// blockBodyKey = blockBodyPrefix + num (uint64 big endian) + hash
-func blockBodyKey(number uint64, hash common.Hash) []byte {
-  return append(append(blockBodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
-}
-
-// preimageKey = preimagePrefix + hash
-func preimageKey(hash common.Hash) []byte {
-  return append(preimagePrefix, hash.Bytes()...)
-}
-
-func preimageKeyByte(hash []byte) []byte {
-  return append(preimagePrefix, hash...)
-}
-
-func ReadBodyRLP(db *leveldb.DB, hash common.Hash, number uint64) rlp.RawValue {
-  data, _ := db.Get(blockBodyKey(number, hash),nil)
-  return data
-}
-// ReadBody retrieves the block body corresponding to the hash.
-func ReadBody(db *leveldb.DB, hash common.Hash, number uint64) *types.Body {
-  data := ReadBodyRLP(db, hash, number)
-  if len(data) == 0 {
-    return nil
-  }
-  body := new(types.Body)
-  if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
-    return nil
-  }
-  return body
 }
 
 func keybytesToHex(str []byte) []byte {
@@ -133,8 +81,19 @@ type Account struct {
   Root     common.Hash // merkle root of the storage trie
   CodeHash []byte
 }
-
-type Storage map[common.Hash]big.Int
+func (a *Account) String() string {
+  r := ""
+  r += "[\n"
+  r += fmt.Sprintf("Nonce: %d\n",a.Nonce)
+  r += fmt.Sprintf("Balance: %d\n",a.Balance)
+  if a.Root != emptyRoot {
+    r += fmt.Sprintf("Root: %x\n",a.Root.Bytes())
+    r += fmt.Sprintf("Code: %x\n",a.CodeHash)
+  }
+  r += "]\n"
+  return r
+}
+type Storage map[common.Hash]Account
 
 var indices = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "[17]"}
 
@@ -218,14 +177,6 @@ func (n valueNode) fstring(ind string) string {
   return fmt.Sprintf("%x ", []byte(n))
 }
 
-func mustDecodeNode(hash, buf []byte, cachegen uint16) node {
-  n, err := decodeNode(hash, buf, cachegen)
-  if err != nil {
-    panic(fmt.Sprintf("node %x: %v", hash, err))
-  }
-  return n
-}
-
 // decodeNode parses the RLP encoding of a trie node.
 func decodeNode(hash, buf []byte, cachegen uint16) (node, error) {
   if len(buf) == 0 {
@@ -297,8 +248,6 @@ func decodeRef(buf []byte, cachegen uint16) (node, []byte, error) {
   }
   switch {
   case kind == rlp.List:
-    // 'embedded' node reference. The encoding must be smaller
-    // than a hash in order to be valid.
     if size := len(buf) - len(rest); size > hashLen {
       err := fmt.Errorf("oversized embedded node (size is %d bytes, want size < %d)", size, hashLen)
       return nil, buf, err
@@ -315,8 +264,6 @@ func decodeRef(buf []byte, cachegen uint16) (node, []byte, error) {
   }
 }
 
-// wraps a decoding error with information about the path to the
-// invalid child node (for debugging encoding issues).
 type decodeError struct {
   what  error
   stack []string
@@ -352,6 +299,7 @@ func toString(s []byte) string {
   }
   return r
 }
+
 func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
   switch fn := n.(type) {
   case *fullNode:
@@ -369,8 +317,8 @@ func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
     var account Account
     if val,ok := fn.Val.(valueNode); ok {
       if err := rlp.DecodeBytes(val, &account); err == nil {
-        fmt.Println(account)
-        accounts[common.BytesToHash(k)] = *(account.Balance)
+        // fmt.Println(account)
+        accounts[common.BytesToHash(k)] = account
       }
     } 
   case hashNode:
@@ -399,6 +347,7 @@ func decodeNibbles(nibbles []byte, bytes []byte) {
     bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
   }
 }
+
 func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte,accounts Storage) error {
   n,err := decodeHash(db,hash,0)
   if err==nil {
@@ -407,60 +356,11 @@ func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte,accounts Storage) 
   return err 
 }
 
-// func rlpDumpKey()
-func rlpdump(db *leveldb.DB, s *rlp.Stream, depth int) error {
-  kind, size, err := s.Kind()
-  if err != nil {
-    return err
-  }
-  switch kind {
-  case rlp.Byte, rlp.String:
-    str, err := s.Bytes()
-    if err != nil {
-      return err
-    }
-    if len(str) == 0 || isASCII(str) {
-      fmt.Printf("%s%q", ws(depth), str)
-    } else {
-      fmt.Printf("%s%x", ws(depth), str)
-      // dumpKey(db,str,depth)
-    }
-  case rlp.List:
-
-    s.List()
-    defer s.ListEnd()
-    if size == 0 {
-      fmt.Print(ws(depth) + "[]")
-    } else {
-      fmt.Println(ws(depth) + "[")
-      for i := 0; ; i++ {
-        if i > 0 {
-          fmt.Print(",\n")
-        }
-        if err := rlpdump(db, s, depth+1); err == rlp.EOL {
-          break
-        } else if err != nil {
-          return err
-        }
-      }
-      fmt.Print(ws(depth) + "]")
-    }
-  }
-  return nil
-}
-
-func isASCII(b []byte) bool {
-  for _, c := range b {
-    if c < 32 || c > 126 {
-      return false
-    }
-  }
-  return true
-}
-
 func ws(n int) string {
   return strings.Repeat("  ", n)
 }
+
+// go run ../gostudy/ethereum/block/laccount.go chain/geth/chaindata/ 7c9575f5ba4fd3ae7142ebef16b454217a220b10
 
 func main() {
   opts := &opt.Options{OpenFilesCacheCapacity: 5}
@@ -472,22 +372,23 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 1304144;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 0;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
       var h types.Header
       if err := rlp.DecodeBytes(data, &h); err == nil {
         accounts := make(Storage)
-        dumpKey(db,h.Root.Bytes(),0,[]byte{},accounts)
-        for k,v := range(accounts) {
-          fmt.Printf("account(%x)=%d\n",k,&v)
-        }
-        address,_ := hex.DecodeString(os.Args[2])
-        addHash := crypto.Keccak256Hash(address[:])
-        if v,ok := accounts[addHash]; ok {
-          fmt.Println(os.Args[2]," has ",&v)
-        } else {
-          fmt.Println("Cannot find account ",os.Args[2])
+        if err := dumpKey(db,h.Root.Bytes(),0,[]byte{},accounts); err == nil {
+          for k,v := range(accounts) {
+            fmt.Printf("account(%x) =\n%s",k,v.String())
+          }
+          address,_ := hex.DecodeString(os.Args[2])
+          addHash := crypto.Keccak256Hash(address[:])
+          if v,ok := accounts[addHash]; ok {
+            fmt.Println(os.Args[2]," has ",v.Balance)
+          } else {
+            fmt.Println("Cannot find account ",os.Args[2])
+          }
         }
       }
     }
