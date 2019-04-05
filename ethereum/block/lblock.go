@@ -366,6 +366,15 @@ func SecureKey(hash common.Hash) []byte {
   return append(secureKeyPrefix, hash.Bytes()...)
 }
 
+func decodeHash(db *leveldb.DB, hash []byte, depth int) (node, error) {
+  val,err := db.Get(hash,nil)
+  if err==nil {
+    return decodeNode(hash,val,0) 
+  } else {
+    return nil,err
+  }
+}
+
 func main() {
 
   opts := &opt.Options{OpenFilesCacheCapacity: 5}
@@ -383,53 +392,97 @@ func main() {
       data, _ := db.Get(headerKey(number, hash),nil)
       var h types.Header
       err := rlp.DecodeBytes(data, &h)
-
       if err == nil {
-      }
-      body := ReadBody(db,hash,number)
-      if(len(body.Transactions)>0){
+        body := ReadBody(db,hash,number)
+        if(len(body.Transactions)>0){
 
-        str,_ := h.MarshalJSON()
-        fmt.Println(string(str))
-        str,_  = body.Transactions[0].MarshalJSON()
-        fmt.Println(string(str))
-      }
-      {
-        root,_ := db.Get(h.Root[:],nil)
-        if len(root)>0 {
           str,_ := h.MarshalJSON()
           fmt.Println(string(str))
-          buf := bytes.NewBuffer(root)
-          s := rlp.NewStream(buf, 0)
-          for {
-            if err := dump(db, s, 0); err != nil {
-              if err != io.EOF {
-              }
-              break
-            }
-            fmt.Println()
-          }
+          str,_  = body.Transactions[0].MarshalJSON()
+          fmt.Println(string(str))
         }
-        
+        dumpKey(db,h.Root.Bytes(),0,[]byte{})
       }
     }
   }
   db.Close()
 }
-func dumpKey(db *leveldb.DB, hash []byte, depth int) {
-  root,_ := db.Get(hash,nil)
-  buf := bytes.NewBuffer(root)
-  s := rlp.NewStream(buf, 0)
-  for {
-    if err := dump(db, s, depth+1); err != nil {
-      if err != io.EOF {
+func toString(s []byte) string {
+  r := ""
+  for _,n := range s {
+    r = r+fmt.Sprintf("-%x",n)
+  }
+  return r
+}
+func dump(db *leveldb.DB,n node,depth int,s []byte) {
+  switch fn := n.(type) {
+  case *fullNode:
+    for i,h := range fn.Children {
+      if h!=nil {
+        fmt.Println(ws(depth)+"child ",toString(s))
+        dump(db,h,depth+1,append(s,byte(i)))
       }
-      break
     }
-    fmt.Println()
+  case *shortNode:
+    fmt.Println(ws(depth)+"ShortNode",fn.String())
+    fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",hexToKeybytes(append(s,fn.Key...))))
+    dump(db,fn.Val,depth+1,s)
+  case hashNode:
+    fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
+    dumpKey(db,fn,depth+1,s)
+  case valueNode:
+    fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
+    buf := bytes.NewBuffer(fn)
+    s := rlp.NewStream(buf, 0)
+    for {
+      if err := rlpdump(db, s, 0); err != nil {
+        if err != io.EOF {
+        }
+        break
+      }
+      fmt.Println()
+    }
+  }
+}
+// func keybytesToHex(str []byte) []byte {
+//   l := len(str)*2 + 1
+//   var nibbles = make([]byte, l)
+//   for i, b := range str {
+//     nibbles[i*2] = b / 16
+//     nibbles[i*2+1] = b % 16
+//   }
+//   nibbles[l-1] = 16
+//   return nibbles
+// }
+// hexToKeybytes turns hex nibbles into key bytes.
+// This can only be used for keys of even length.
+func hexToKeybytes(hex []byte) []byte {
+  if hasTerm(hex) {
+    hex = hex[:len(hex)-1]
+  }
+  if len(hex)&1 != 0 {
+    fmt.Println("can't convert hex key of odd length",len(hex))
+    return []byte{0}
+  }
+  key := make([]byte, (len(hex)+1)/2)
+  decodeNibbles(hex, key)
+  return key
+}
+
+func decodeNibbles(nibbles []byte, bytes []byte) {
+  for bi, ni := 0, 0; ni < len(nibbles); bi, ni = bi+1, ni+2 {
+    bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
+  }
+}
+func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte) {
+  n,err := decodeHash(db,hash,0)
+  if err==nil {
+    dump(db,n,depth,s)
   }  
 }
-func dump(db *leveldb.DB, s *rlp.Stream, depth int) error {
+
+// func rlpDumpKey()
+func rlpdump(db *leveldb.DB, s *rlp.Stream, depth int) error {
   kind, size, err := s.Kind()
   if err != nil {
     return err
@@ -444,9 +497,10 @@ func dump(db *leveldb.DB, s *rlp.Stream, depth int) error {
       fmt.Printf("%s%q", ws(depth), str)
     } else {
       fmt.Printf("%s%x", ws(depth), str)
-      dumpKey(db,str,depth)
+      // dumpKey(db,str,depth)
     }
   case rlp.List:
+
     s.List()
     defer s.ListEnd()
     if size == 0 {
@@ -457,7 +511,7 @@ func dump(db *leveldb.DB, s *rlp.Stream, depth int) error {
         if i > 0 {
           fmt.Print(",\n")
         }
-        if err := dump(db, s, depth+1); err == rlp.EOL {
+        if err := rlpdump(db, s, depth+1); err == rlp.EOL {
           break
         } else if err != nil {
           return err
