@@ -402,6 +402,10 @@ func main() {
           fmt.Println(string(str))
         }
         dumpKey(db,h.Root.Bytes(),0,[]byte{})
+        // fmt.Println("---next Tx Hash---")
+        dumpKey(db,h.TxHash.Bytes(),0,[]byte{})
+        dumpKey(db,h.ReceiptHash.Bytes(),0,[]byte{})
+        
       }
     }
   }
@@ -425,7 +429,8 @@ func dump(db *leveldb.DB,n node,depth int,s []byte) {
     }
   case *shortNode:
     fmt.Println(ws(depth)+"ShortNode",fn.String())
-    fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",hexToKeybytes(append(s,fn.Key...))))
+    k := hexToKeybytes(append(s,fn.Key...))
+    fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",k))
     dump(db,fn.Val,depth+1,s)
   case hashNode:
     fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
