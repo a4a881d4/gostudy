@@ -19,6 +19,7 @@ import (
 
   "github.com/ethereum/go-ethereum/rlp"
   "github.com/ethereum/go-ethereum/trie"
+  "github.com/ethereum/go-ethereum/ethdb/memorydb"
 
   "github.com/syndtr/goleveldb/leveldb"
   "github.com/syndtr/goleveldb/leveldb/opt"
@@ -58,7 +59,8 @@ var (
 
   // Chain index prefixes (use `i` + single byte to avoid mixing data types).
   BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
-
+  emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+  dotDoc = ""
 )
 
 func encodeBlockNumber(number uint64) []byte {
@@ -404,21 +406,15 @@ func main() {
       if err == nil {
         body := ReadBody(db,hash,number)
         if(len(body.Transactions)>0){
+          for _,t := range(body.Transactions) {
+            str,_ := t.MarshalJSON()
+            fmt.Println(string(str))
+          }
           var txs types.Transactions
           txs = body.Transactions
-          tr := Derive(txs)
-          hash := types.DeriveSha(txs)
-          dumpTrie(tr,hash.Bytes())
-          // it := trie.NewIterator(tr.NodeIterator(nil))
-          // for it.Next() {
-          //   fmt.Printf("%x\n",it.Value)
-          // }
-          // fmt.Printf("%x-%x\n",hashT.Bytes(),h.TxHash.Bytes())
-          str,_ := h.MarshalJSON()
-          fmt.Println(string(str))
-          for _,t := range(body.Transactions) {
-            str,_  = t.MarshalJSON()
-            fmt.Println(string(str))
+          if _,tdb,root,err := Derive(txs); err == nil {
+            dumpTrie(tdb,root,0,[]byte{})
+            fmt.Println(dotDoc)            
           }
         }
       }
@@ -445,6 +441,14 @@ func toString(s []byte) string {
   for _,n := range s {
     r = r+fmt.Sprintf("-%x",n)
   }
+  return r
+}
+func toBinString(s []byte) string {
+  r := "\""
+  for _,n := range s {
+    r = r+fmt.Sprintf("%x",n)
+  }
+  r += "\""
   return r
 }
 func dump(db *leveldb.DB,n node,depth int,s []byte) {
@@ -560,25 +564,124 @@ func ws(n int) string {
   return strings.Repeat("  ", n)
 }
 
-func Derive(list types.DerivableList) *trie.Trie {
+func Derive(list types.DerivableList) (*trie.Trie, *trie.Database, common.Hash, error) {
   keybuf := new(bytes.Buffer)
-  trie := new(trie.Trie)
+  db := trie.NewDatabase(memorydb.New())
+  trie, _ := trie.New(common.Hash{}, db)
   for i := 0; i < list.Len(); i++ {
     keybuf.Reset()
     rlp.Encode(keybuf, uint(i))
     trie.Update(keybuf.Bytes(), list.GetRlp(i))
   }
-  return trie
+  root,err := trie.Commit(nil)
+  return trie,db,root,err
 }
-
-func dumpTrie(t *trie.Trie, root []byte) {
-  if blob,err := t.TryGet([]byte{0x80}); err == nil {
-    if node,err := decodeNode(root,blob,0); err == nil {
-      fmt.Println(node.fstring(""))
-    } else {
-      fmt.Println("node ",err,blob)
+func dumpS(t *trie.Database, s *rlp.Stream, depth int) error {
+  kind, size, _ := s.Kind()
+  switch kind {
+  case rlp.Byte, rlp.String:
+    str, err := s.Bytes()
+    if err != nil {
+      return err
     }
-  } else {
-    fmt.Println("blob ",err)
+    if len(str) == 0 || isASCII(str) {
+      fmt.Printf("%s%q", ws(depth), str)
+    } else {
+      fmt.Printf("%s%x", ws(depth), str)
+      dumpTrie(t,common.BytesToHash(str),depth+1,[]byte{})
+    }
+  case rlp.List:
+    s.List()
+    defer s.ListEnd()
+    if size == 0 {
+      fmt.Print(ws(depth) + "[]")
+    } else {
+      fmt.Println(ws(depth) + "[")
+      for i := 0; ; i++ {
+        if i > 0 {
+          fmt.Print(",\n")
+        }
+        if err := dumpS(t,s, depth+1); err == rlp.EOL {
+          break
+        } else if err != nil {
+          return err
+        }
+      }
+      fmt.Print(ws(depth) + "]")
+    }
+  }
+  return nil  
+}
+func dumpTrie(t *trie.Database, root common.Hash, depth int, s []byte) {
+  if blob,err := t.Node(root); err == nil {
+    n,_ := decodeNode(root.Bytes(),blob,0)
+    dumpTrieNode(t,n,depth,s)  
   }
 }
+
+func (n *fullNode) Name() string {
+  str := fmt.Sprintf("%x",n.flags.hash)
+  return fmt.Sprintf("\"F%s\"",str[:8])
+}
+func (n *hashNode) Name() string {
+  str := fmt.Sprintf("%x",n)
+  return fmt.Sprintf("H%s",str[:8])
+}
+
+func dumpTrieNode(t *trie.Database, n node, depth int, s []byte) {
+  switch fn := n.(type) {
+  case *fullNode:
+    fName := fmt.Sprintf("\"N%s\"",toString(s))
+    connect := ""
+    dots := ""
+    dots += fName +" [\n"
+    dots += "label = \" <f0> " 
+    for i,h := range fn.Children {
+      if i!=0 {
+        dots += fmt.Sprintf("| <f%x> ",i)
+      }
+      if h!=nil {
+        fmt.Println(ws(depth)+"child ",toString(s))
+        dumpTrieNode(t,h,depth+1,append(s,byte(i)))
+        dots += "N"+toString(append(s,byte(i)))+ " "
+        nName := fmt.Sprintf("\"N%s\"",toString(append(s,byte(i))))
+        connect += fmt.Sprintf("%s:f%x -> %s [id = %s];\n",fName,i,nName,toBinString(append(s,byte(i))))
+      }
+    }
+    dots += "\"\nshape = \"record\"\n];\n"
+    dotDoc +=dots
+    dotDoc +=connect
+  case *shortNode:
+    fmt.Println(ws(depth)+"ShortNode",fn.String())
+    k := hexToKeybytes(append(s,fn.Key...))
+    fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",k))
+    dumpTrieNode(t,fn.Val,depth+1,s)
+  case hashNode:
+    fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
+    dumpTrie(t,common.BytesToHash(fn),depth+1,s)
+  case valueNode:
+    fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
+    var tx types.Transaction 
+    if err := rlp.DecodeBytes(fn, &tx); err == nil {
+      dots := ""
+      nName := fmt.Sprintf("\"N%s\"",toString(s))
+      dots += nName +" [\n"
+      dots += fmt.Sprintf("label = \" Nonce: %d ",tx.Nonce())
+      dots += fmt.Sprintf(" | to:%x ",tx.To().Bytes())
+      dots += fmt.Sprintf(" | val:%d ",tx.Value())
+      dots += "\"\nshape = \"record\"\n];\n"
+      dotDoc += dots
+    }
+    buf := bytes.NewBuffer(fn)
+    s := rlp.NewStream(buf, 0)
+    for {
+      if err := rlpdump(nil, s, 0); err != nil {
+        if err != io.EOF {
+        }
+        break
+      }
+      fmt.Println()
+    }
+  }
+}
+
