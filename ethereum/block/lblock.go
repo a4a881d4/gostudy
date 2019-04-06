@@ -417,6 +417,8 @@ func main() {
             fmt.Println(dotDoc)            
           }
         }
+        str,_ := h.MarshalJSON()
+        fmt.Println(string(str))
       }
     }
   }
