@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-//go run ethereum/account/newaccount.go ../../ethereum/chain/keystore 931
+//go run ethereum/account/newaccount.go ../ethereum/chain/keystore 931
 func main() {
 	dir := os.Args[1]
 	passphrase := os.Args[2]
