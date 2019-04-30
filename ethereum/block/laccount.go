@@ -450,15 +450,15 @@ func main() {
           } else {
             fmt.Println("Cannot find account ",os.Args[2])
           }
-          for k,v := range(accounts) {
-            if v.Root != emptyRoot {
-              if code,err := db.Get(v.CodeHash,nil); err==nil {
-                fmt.Println("Contract code: ",k[:8],code[:8])
-              }
-              nop := make(Storage)
-              dumpKey(db,v.Root.Bytes(),0,[]byte{},nop)
-            }
-          }
+          // for k,v := range(accounts) {
+          //   if v.Root != emptyRoot {
+          //     if code,err := db.Get(v.CodeHash,nil); err==nil {
+          //       fmt.Println("Contract code: ",k[:8],code[:8])
+          //     }
+          //     nop := make(Storage)
+          //     dumpKey(db,v.Root.Bytes(),0,[]byte{},nop)
+          //   }
+          // }
         }
       }
     }
