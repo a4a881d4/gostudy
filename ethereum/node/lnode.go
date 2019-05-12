@@ -171,6 +171,8 @@ func (n *Node) v4URL() string {
   }
   return u.String()
 }
+
+// go run ethereum/node/lnode.go ../../ethereum/chain/geth/nodes
 func main() {
   var (
     nodeDBVersionKey = []byte("version")
@@ -200,7 +202,7 @@ func main() {
         if err := rlp.DecodeBytes(blob, &n.r); err == nil {
           fmt.Println(n.v4URL())
         } else {
-          fmt.Println(blob)
+          //fmt.Println(blob)
           fmt.Println(err)
         }  
       }
