@@ -1,4 +1,4 @@
-pragma solilidy ^0.4.0;
+pragma solilidy ^0.5.0;
 
 contract Hello {
   function mul(uint a) public returns (uint b) {
