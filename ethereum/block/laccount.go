@@ -421,7 +421,7 @@ func ws(n int) string {
   return strings.Repeat("  ", n)
 }
 
-// go run ../gostudy/ethereum/block/laccount.go chain/geth/chaindata/ 7c9575f5ba4fd3ae7142ebef16b454217a220b10
+// go run ethereum/block/laccount.go ../ethereum/chain/geth/chaindata/ 7c9575f5ba4fd3ae7142ebef16b454217a220b10
 
 func main() {
   opts := &opt.Options{OpenFilesCacheCapacity: 5}
@@ -433,7 +433,8 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 1209026;number<1304144+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 0;number<13041+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+    
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
       var h types.Header

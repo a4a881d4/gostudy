@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-//go run ethereum/account/readkeyfile.go ../../ethereum/chain/keystore 3A703C956f29Da6666d681fd143170f9a84D20db 931
+//go run ethereum/account/readkeyfile.go ../ethereum/chain/keystore 9c6898f5f38a015d74601dd297852791ac42f40a 931
 func main() {
 	dir := os.Args[1]
 	var address = common.HexToAddress(os.Args[2])

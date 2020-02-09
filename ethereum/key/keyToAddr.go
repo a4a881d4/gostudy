@@ -8,6 +8,8 @@ import (
   "os"
 )
 
+
+// go run ethereum/key/keyToAddr.go 5a9d617f0db5a9a7d1ec4b97f8e5b12801d0c3a6386802fce907e7cd9fdead81
 func main() {
   curve := NewSecp256K1()
   prK := new(big.Int)

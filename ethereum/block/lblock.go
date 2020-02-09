@@ -397,7 +397,7 @@ func main() {
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
   var number uint64
-  for number = 0x1279e7;number<0x1279e7+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 0;number<13000+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       hash := common.BytesToHash(blob)
       data, _ := db.Get(headerKey(number, hash),nil)
@@ -406,19 +406,20 @@ func main() {
       if err == nil {
         body := ReadBody(db,hash,number)
         if(len(body.Transactions)>0){
-          for _,t := range(body.Transactions) {
-            str,_ := t.MarshalJSON()
-            fmt.Println(string(str))
-          }
+          // for _,t := range(body.Transactions) {
+          //   str,_ := t.MarshalJSON()
+          //   fmt.Println(string(str))
+          // }
           var txs types.Transactions
           txs = body.Transactions
           if _,tdb,root,err := Derive(txs); err == nil {
             dumpTrie(tdb,root,0,[]byte{})
+            fmt.Println()
             fmt.Println(dotDoc)            
           }
         }
-        str,_ := h.MarshalJSON()
-        fmt.Println(string(str))
+        // str,_ := h.MarshalJSON()
+        // fmt.Println(string(str))
       }
     }
   }
