@@ -1,4 +1,4 @@
-module ecc
+module github.com/a4a881d4/gostudy/ethereum/account/ecc
 
 go 1.13
 
