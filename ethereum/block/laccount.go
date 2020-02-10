@@ -85,11 +85,11 @@ type Account struct {
 func (a *Account) String() string {
   r := ""
   r += "[\n"
-  r += fmt.Sprintf("Nonce: %d\n",a.Nonce)
-  r += fmt.Sprintf("Balance: %d\n",a.Balance)
+  r += fmt.Sprintf("\tNonce: %d\n",a.Nonce)
+  r += fmt.Sprintf("\tBalance: %d\n",a.Balance)
   if a.Root != emptyRoot {
-    r += fmt.Sprintf("Root: %x\n",a.Root.Bytes())
-    r += fmt.Sprintf("Code: %x\n",a.CodeHash)
+    r += fmt.Sprintf("\tRoot: %x\n",a.Root.Bytes())
+    r += fmt.Sprintf("\tCode: %x\n",a.CodeHash)
   }
   r += "]\n"
   return r
@@ -188,14 +188,14 @@ func decodeNode(hash, buf []byte, cachegen uint16) (node, error) {
     return nil, fmt.Errorf("decode error: %v", err)
   }
   switch c, _ := rlp.CountValues(elems); c {
-  case 2:
-    n, err := decodeShort(hash, buf, elems, cachegen)
-    return n, wrapError(err, "short")
-  case 17:
-    n, err := decodeFull(hash, buf, elems, cachegen)
-    return n, wrapError(err, "full")
-  default:
-    return nil, fmt.Errorf("invalid number of list elements: %v", c)
+    case 2:
+      n, err := decodeShort(hash, buf, elems, cachegen)
+      return n, wrapError(err, "short")
+    case 17:
+      n, err := decodeFull(hash, buf, elems, cachegen)
+      return n, wrapError(err, "full")
+    default:
+      return nil, fmt.Errorf("invalid number of list elements: %v", c)
   }
 }
 
@@ -293,6 +293,7 @@ func decodeHash(db *leveldb.DB, hash []byte, depth int) (node, error) {
     return nil,err
   }
 }
+
 func toString(s []byte) string {
   r := ""
   for _,n := range s {
@@ -303,41 +304,41 @@ func toString(s []byte) string {
 
 func dump(db *leveldb.DB,n node,depth int,s []byte,accounts Storage) {
   switch fn := n.(type) {
-  case *fullNode:
-    for i,h := range fn.Children {
-      if h!=nil {
-        fmt.Println(ws(depth)+"child ",toString(s))
-        dump(db,h,depth+1,append(s,byte(i)),accounts)
-      }
-    }
-  case *shortNode:
-    fmt.Println(ws(depth)+"ShortNode",fn.String())
-    k := hexToKeybytes(append(s,fn.Key...))
-    fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",k))
-    dump(db,fn.Val,depth+1,s,accounts)
-    var account Account
-    if val,ok := fn.Val.(valueNode); ok {
-      if err := rlp.DecodeBytes(val, &account); err == nil {
-        // fmt.Println(account)
-        accounts[common.BytesToHash(k)] = account
-      } else {
-        buf := bytes.NewBuffer(val)
-        s := rlp.NewStream(buf, 0)
-        for {
-          if err := rlpdump(db, s, depth+2); err != nil {
-            if err != io.EOF {
-            }
-            break
-          }
-          fmt.Println()
+    case *fullNode:
+      for i,h := range fn.Children {
+        if h!=nil {
+          fmt.Println(ws(depth)+"child ",toString(s))
+          dump(db,h,depth+1,append(s,byte(i)),accounts)
         }
       }
-    } 
-  case hashNode:
-    fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
-    dumpKey(db,fn,depth+1,s,accounts)
-  case valueNode:
-    fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
+    case *shortNode:
+      fmt.Println(ws(depth)+"ShortNode",fn.String())
+      k := hexToKeybytes(append(s,fn.Key...))
+      fmt.Println(ws(depth)+"ShortNode Key",fmt.Sprintf("%x ",k))
+      dump(db,fn.Val,depth+1,s,accounts)
+      
+      var account Account
+      if val,ok := fn.Val.(valueNode); ok {
+        if err := rlp.DecodeBytes(val, &account); err == nil {
+          accounts[common.BytesToHash(k)] = account
+        } else {
+          buf := bytes.NewBuffer(val)
+          s := rlp.NewStream(buf, 0)
+          for {
+            if err := rlpdump(db, s, depth+2); err != nil {
+              if err != io.EOF {
+              }
+              break
+            }
+            fmt.Println()
+          }
+        }
+      } 
+    case hashNode:
+      fmt.Println(ws(depth)+toString(s)+":hash Node",fn.String())
+      dumpKey(db,fn,depth+1,s,accounts)
+    case valueNode:
+      fmt.Println(ws(depth)+toString(s)+":value Node",fn.String())
   }
 }
 func rlpdump(db *leveldb.DB, s *rlp.Stream, depth int) error {
@@ -355,7 +356,6 @@ func rlpdump(db *leveldb.DB, s *rlp.Stream, depth int) error {
       fmt.Printf("%s%q", ws(depth), str)
     } else {
       fmt.Printf("%s%x", ws(depth), str)
-      // dumpKey(db,str,depth)
     }
   case rlp.List:
 
@@ -394,12 +394,15 @@ func hexToKeybytes(hex []byte) []byte {
   if hasTerm(hex) {
     hex = hex[:len(hex)-1]
   }
-  if len(hex)&1 != 0 {
-    fmt.Println("can't convert hex key of odd length",len(hex))
-    return []byte{0}
-  }
   key := make([]byte, (len(hex)+1)/2)
-  decodeNibbles(hex, key)
+  if len(hex)&1 != 0 {
+    // fmt.Println("can't convert hex key of odd length",len(hex))
+    nhex := make([]byte, len(hex)+1)
+    copy(nhex[1:],hex)
+    decodeNibbles(nhex, key)
+  } else {
+    decodeNibbles(hex, key)
+  }
   return key
 }
 
@@ -421,7 +424,7 @@ func ws(n int) string {
   return strings.Repeat("  ", n)
 }
 
-// go run ethereum/block/laccount.go ../ethereum/chain/geth/chaindata/ 7c9575f5ba4fd3ae7142ebef16b454217a220b10
+// go run ethereum/block/laccount.go ../ethereum/chain/geth/chaindata/ 951ac03f86ad5d42719963beb01498a07b40d81f
 
 func main() {
   opts := &opt.Options{OpenFilesCacheCapacity: 5}
@@ -432,6 +435,7 @@ func main() {
   }
   blob, _ := db.Get(databaseVerisionKey, nil)
   fmt.Println("Version", blob)
+
   var number uint64
   for number = 0;number<13041+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     
@@ -441,14 +445,17 @@ func main() {
       if err := rlp.DecodeBytes(data, &h); err == nil {
         accounts := make(Storage)
         if err := dumpKey(db,h.Root.Bytes(),0,[]byte{},accounts); err == nil {
+          count := 0
           for k,v := range(accounts) {
-            fmt.Printf("account(%x) =\n%s",k,v.String())
+            fmt.Printf("%3d. account(%x) =\n%s",count,k,v.String())
+            count ++
           }
           address,_ := hex.DecodeString(os.Args[2])
           addHash := crypto.Keccak256Hash(address[:])
           if v,ok := accounts[addHash]; ok {
             fmt.Println(os.Args[2]," has ",v.Balance)
           } else {
+            fmt.Printf("hash is %x ",addHash)
             fmt.Println("Cannot find account ",os.Args[2])
           }
           // for k,v := range(accounts) {
