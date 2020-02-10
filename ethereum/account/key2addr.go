@@ -3,13 +3,23 @@ package main
 import(
 	"fmt"
 	"github.com/a4a881d4/gostudy/ethereum/account/ecc"
+	"github.com/a4a881d4/gostudy/constant"
 	"math/big"
+	"os"
 )
-// go run ethereum/account/key2addr.go 5a9d617f0db5a9a7d1ec4b97f8e5b12801d0c3a6386802fce907e7cd9fdead81
+// go run ethereum/account/key2addr.go 4000000000000000000000000000000000000000000000000000000000000000
 
 func main() {
   curve := ecc.NewSecp256K1()
   prK := new(big.Int)
-  prK.SetString(os.Args[1],16)
-  fmt.Println(curve.PrivateKey2Address(prK))
+  if os.Args.len() < 2 {
+    prK.SetString(constant.PrivateKey2Address,16)
+  } else {
+    prK.SetString(os.Args[1],16)
+  }
+
+  for i:=0;i<16;i++ {
+  	fmt.Println(curve.PrivateKey2Address(prK))
+  	prK.Add(prK,big.NewInt(1))
+  }
 }
