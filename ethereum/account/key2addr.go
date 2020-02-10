@@ -12,8 +12,8 @@ import(
 func main() {
   curve := ecc.NewSecp256K1()
   prK := new(big.Int)
-  if os.Args.len() < 2 {
-    prK.SetString(constant.PrivateKey2Address,16)
+  if len(os.Args) < 2 {
+    prK.SetString(constant.PrivateKeyStart,16)
   } else {
     prK.SetString(os.Args[1],16)
   }
