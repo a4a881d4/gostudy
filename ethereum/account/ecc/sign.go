@@ -31,7 +31,7 @@ func(curve *ECC) Sign(key, d *big.Int, hash []byte) (*big.Int,*big.Int) {
 
 	s := zero().Mul(zero().Add(r.Mul(r,key),e),iD)
 
-	s := s.ModInverse(s, &curve.N)
+	s = s.ModInverse(s, &curve.N)
 
 	return r,s
 }
@@ -42,22 +42,22 @@ func(curve *ECC) Verify(Q *ECPoint, r, s *big.Int, hash []byte) bool {
 	
 	iS := zero().ModInverse(s, &curve.N)
 
-	u1 := zeros().Rem(e.Mul(e,iS),&curve.N)
+	u1 := zero().Rem(e.Mul(e,iS),&curve.N)
 
-	u2 := zeros().Rem(e.Mul(r,iS),&curve.N)
+	u2 := zero().Rem(e.Mul(r,iS),&curve.N)
 
 	uG := curve.PointScale(&curve.G,u1)
 
 	uQ := curve.PointScale(Q,u2)
 
-	X  := curve.Add(uG,uQ)
+	X  := curve.PointAdd(uG,uQ)
 
 	vr := zero().Rem(&X.X,&curve.N)
 
 	return (vr.Cmp(r) == 0)
 }
 
-func(curve *ECC) hack(key, r, s *big.Int, hash []byte) *big.Int {
+func(curve *ECC) Hack(key, r, s *big.Int, hash []byte) *big.Int {
 	// d = (e+kr)/s
 	e  := zero().SetBytes(hash)
 
