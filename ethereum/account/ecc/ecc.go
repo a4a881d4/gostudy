@@ -1,11 +1,9 @@
 package ecc
 
 import (
-	_ "fmt"
   "math/big"
   "golang.org/x/crypto/sha3"
   "encoding/hex"
-  _ "os"
 )
 
 
@@ -18,6 +16,7 @@ type ECPoint struct {
 type ECC struct {
   P big.Int
   A big.Int
+  N big.Int
   G ECPoint
 }
 
@@ -25,6 +24,7 @@ func NewSecp256K1() (*ECC) {
   var ret = new(ECC)
   ret.P.SetString("0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",16)
   ret.A.SetString("7",16)
+  ret.N.SetString("0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",16)
   x := new(big.Int)
   x.SetString("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",16)
   ret.G = *(ret.NewPoint(x))
