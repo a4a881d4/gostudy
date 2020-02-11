@@ -9,7 +9,7 @@ import (
 	"github.com/regcostajr/go-web3/providers"
 	"github.com/regcostajr/go-web3/dto"
 
-	"github.com/a4a881d4/gostudy/go-web3/web3ext"
+	"github.com/a4a881d4/gostudy/ethereum/go-web3/web3ext"
 )
 
 // go run ethereum/go-web3/getTx.go 0x5768ceae61357f4022ff731c2263b70113a3f23215db52742c7892208ac337b8
@@ -33,8 +33,8 @@ func main() {
 		fmt.Println("raw",raw)
 	}
 	ext := web3ext.NewWeb3Ext(connection.Provider)
-	if raw, err := ext.GetRawTransactionByHash(os.Args[1]); err != nil {
-		fmt.Println(raw)
+	if raw, err := ext.GetRawTransactionByHash(os.Args[1]); err == nil {
+		fmt.Println("Raw",raw)
 	} else {
 		fmt.Println(err)
 	}
