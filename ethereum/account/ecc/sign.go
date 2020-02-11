@@ -1,6 +1,7 @@
 package ecc
 
 import (
+	"fmt"
 	"math/rand"
 	"math/big"
 )
@@ -29,22 +30,22 @@ func(curve *ECC) Sign(key, d *big.Int, hash []byte) (*big.Int,*big.Int) {
 
 	e := zero().SetBytes(hash)
 
-	s := zero().Mul(zero().Add(r.Mul(r,key),e),iD)
+	s := zero().Mul(iD,zero().Add(e,zero().Mul(r,key)))
 
-	s = s.ModInverse(s, &curve.N)
+	s = zero().Rem(s, &curve.N)
 
 	return r,s
 }
 
-func(curve *ECC) Verify(Q *ECPoint, r, s *big.Int, hash []byte) bool {
+func(curve *ECC) Verify(Q *ECPoint, r, s *big.Int, hash []byte) (bool,*big.Int) {
 	
 	e  := zero().SetBytes(hash)
 	
 	iS := zero().ModInverse(s, &curve.N)
 
-	u1 := zero().Rem(e.Mul(e,iS),&curve.N)
+	u1 := zero().Rem(zero().Mul(e,iS),&curve.N)
 
-	u2 := zero().Rem(e.Mul(r,iS),&curve.N)
+	u2 := zero().Rem(zero().Mul(r,iS),&curve.N)
 
 	uG := curve.PointScale(&curve.G,u1)
 
@@ -54,20 +55,43 @@ func(curve *ECC) Verify(Q *ECPoint, r, s *big.Int, hash []byte) bool {
 
 	vr := zero().Rem(&X.X,&curve.N)
 
-	return (vr.Cmp(r) == 0)
+	return (vr.Cmp(r) == 0),vr
 }
 
+func(curve *ECC) Verify2(Q *ECPoint, r, s *big.Int, hash []byte) (bool,*big.Int) {
+	
+	e  := zero().SetBytes(hash)
+	
+	iS := zero().ModInverse(s, &curve.N)
+
+	// u1 := zero().Rem(zero().Mul(e,iS),&curve.N)
+
+	// u2 := zero().Rem(zero().Mul(r,iS),&curve.N)
+
+	uG := curve.PointScale(&curve.G,e)
+	fmt.Println("e",e.Text(16))
+
+	uQ := curve.PointScale(Q,r)
+
+	S  := curve.PointAdd(uG,uQ)
+
+	X  := curve.PointScale(S,iS)
+
+	vr := zero().Rem(&X.X,&curve.N)
+
+	return (vr.Cmp(r) == 0),vr
+}
 func(curve *ECC) Hack(key, r, s *big.Int, hash []byte) *big.Int {
 	// d = (e+kr)/s
 	e  := zero().SetBytes(hash)
 
 	iS := zero().ModInverse(s, &curve.N)
 
-	d  := e.Add(e,key.Mul(key,r))
+	d  := zero().Add(e,zero().Mul(key,r))
 
-	d  = d.Mul(d,iS) 
+	d  = zero().Mul(d,iS) 
 
-	d  = d.Rem(d,&curve.N)
+	d  = zero().Rem(d,&curve.N)
 
 	return d
 }
