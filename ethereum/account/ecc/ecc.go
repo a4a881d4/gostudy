@@ -132,7 +132,7 @@ func(curve *ECC) PointAdd(Q,P *ECPoint) (*ECPoint) {
 func(curve *ECC) PointSub(Q,P *ECPoint) (*ECPoint) {
   nP := new(ECPoint)
   nP.X = P.X
-  (&nP.Y).Sub(&curve.N,&P.Y)
+  (&nP.Y).Sub(&curve.P,&P.Y)
   return curve.PointAdd(Q,nP)
 }
 func(curve *ECC) PointTwice(Q *ECPoint) (*ECPoint) {
@@ -173,6 +173,10 @@ func(curve *ECC) PointScale(Q *ECPoint, N *big.Int) (*ECPoint) {
 
 func(curve *ECC) PrivateKey2Address(key *big.Int) (string) {
   puK := curve.PointScale(&curve.G,key)
+  return curve.PublicKey2Address(puK)
+}
+
+func(curve *ECC) PublicKey2Address(puK *ECPoint) (string) {
   var hasher = sha3.NewLegacyKeccak256()
   hasher.Write(puK.Bytes())
   addr := hasher.Sum(nil)[12:]

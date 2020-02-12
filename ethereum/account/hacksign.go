@@ -37,7 +37,7 @@ func main() {
 	verify(r,s)
 
 	fmt.Println(v)
-
+	recover(r,s,v)
 	// hack(r,s)
 	// check(r,s)
 	// checkSwap(d)
@@ -71,6 +71,9 @@ func hackD() *big.Int {
 	d   := curve.Hack(key,r,s,hash)
 	fmt.Println("hackD",v,d.Text(16))
 	Q := curve.PointScale(&curve.G,key)
+	fmt.Println(toString(Q),"----pub key----")
+	dG := curve.PointScale(&curve.G,d)
+	fmt.Println(toString(dG),"-----dG------")
 
 	if curve.Verify(Q,r,s,hash) {
 		fmt.Println("-ok")
@@ -88,7 +91,10 @@ func sign(d *big.Int) (r,s *big.Int, v int64) {
 	r,s,v   = curve.Sign(key,d,hash)
 	fmt.Println("r =",r.Text(16))
 	fmt.Println("s =",s.Text(16))
-	fmt.Println("v =",v)
+	e155 := eip155.NewEIP155(931)
+	
+	fmt.Println("v =",e155.V(v).Text(16))
+
 	return r,s,v
 }
 
@@ -114,6 +120,7 @@ func tx() common.Hash {
 	e155 := eip155.NewEIP155(931)
 	hash := e155.Hash(tx)
 	fmt.Println("hash",hash.Hex())
+
 	return hash
 }
 
@@ -180,3 +187,16 @@ func hack(r,s *big.Int) *big.Int {
 	return d	
 }
 
+func recover(r,s *big.Int, v int64) {
+	hash, _:= hex.DecodeString(E155Hash)
+	curve := ecc.NewSecp256K1()
+	dG := curve.NewPoint(r)
+	if v != int64(dG.Y.Bit(0)) {
+		dG.Y = *(big.NewInt(0).Sub(&curve.P,&dG.Y))
+	}
+	fmt.Println(toString(dG),"-----dG(recover)------")
+
+	Q := curve.Recover(r,s,v,hash)
+	fmt.Println("----Sign by----")
+	fmt.Println(curve.PublicKey2Address(Q))
+}

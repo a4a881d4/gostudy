@@ -20,7 +20,7 @@ func(curve *ECC) Sign(key, d *big.Int, hash []byte) (*big.Int,*big.Int, int64) {
 	if D.Cmp(zero()) == 0 {
 		D.Rand(rnd, &curve.N)
 	}
-  
+ 	secp256k1halfN := new(big.Int).Div(&curve.N, big.NewInt(2)) 
 	dG := curve.PointScale(&curve.G,D)
 
 	r := zero().Set(&dG.X)
@@ -40,6 +40,10 @@ func(curve *ECC) Sign(key, d *big.Int, hash []byte) (*big.Int,*big.Int, int64) {
 	s.Mod(s,&curve.N)
 
 	v := int64(dG.Y.Bit(0))
+
+	if s.Cmp(secp256k1halfN) > 0 {
+		return curve.Sign(key,zero(),hash)
+	}
 
 	return r,s,v
 }
@@ -91,14 +95,14 @@ func(curve *ECC) Recover(r,s *big.Int, v int64, hash []byte) *ECPoint {
 	
 	Q := curve.NewPoint(r)
 	if v != int64(Q.Y.Bit(0)) {
-		Q.Y = *(big.NewInt(0).Sub(&curve.N,&Q.Y))
+		Q.Y = *(big.NewInt(0).Sub(&curve.P,&Q.Y))
 	}
 
-	e = e.Mul(e,iR)
-	s = s.Mul(s,iR)
+	e   = e.Mul(e,iR)
+	is := zero().Mul(s,iR)
 
 	eG := curve.PointScale(&curve.G,e)
-	sQ := curve.PointScale(Q,s)
+	sQ := curve.PointScale(Q,is)
 
 	R := curve.PointSub(sQ,eG)
 

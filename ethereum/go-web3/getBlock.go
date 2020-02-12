@@ -63,7 +63,8 @@ func main() {
 	for k,v := range(accounts) {
 		if v.Cmp(big.NewInt(0)) > 0 {
 			bal := v.String()
-			fmt.Printf("%4d. [%s] has %s Wei\n",ac,k,space[:(30-len(bal))]+bal)
+			countTx, _ := connection.Eth.GetTransactionCount(k, block.LATEST)
+			fmt.Printf("%4d. [%s] %s Wei %4d Tx\n",ac,k,space[:(30-len(bal))]+bal,countTx)
 			ac += 1
 		}
 	}

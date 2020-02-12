@@ -14,6 +14,20 @@ type EIP155 struct {
 	chainId, chainIdMul *big.Int
 }
 
+type Transaction struct {
+	AccountNonce uint64
+	Price        *big.Int
+	GasLimit     uint64
+	Recipient    *common.Address
+	Amount       *big.Int
+	Payload      []byte
+
+	// Signature values
+	V *big.Int
+	R *big.Int
+	S *big.Int
+}
+
 func NewEIP155(cID int64) EIP155 {
 	return EIP155{
 		chainId:    big.NewInt(cID),
@@ -28,18 +42,43 @@ func rlpHash(x interface{}) (h common.Hash) {
 	return h
 }
 
-/*
-func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
-func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
-func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
-func (tx *Transaction) Value() *big.Int    { return new(big.Int).Set(tx.data.Amount) }
-func (tx *Transaction) Nonce() uint64      { return tx.data.AccountNonce }
-func (tx *Transaction) CheckNonce() bool   { return true }
+func NewTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+	if len(data) > 0 {
+		data = common.CopyBytes(data)
+	}
+	d := Transaction{
+		AccountNonce: nonce,
+		Recipient:    to,
+		Payload:      data,
+		Amount:       new(big.Int),
+		GasLimit:     gasLimit,
+		Price:        new(big.Int),
+		V:            new(big.Int),
+		R:            new(big.Int),
+		S:            new(big.Int),
+	}
+	if amount != nil {
+		d.Amount.Set(amount)
+	}
+	if gasPrice != nil {
+		d.Price.Set(gasPrice)
+	}
 
-// To returns the recipient address of the transaction.
-// It returns nil if the transaction is a contract creation.
-func (tx *Transaction) To() *common.Address {
-*/
+	return &d
+}
+
+func(s *EIP155) HashExt(tx *Transaction) common.Hash {
+	return rlpHash([]interface{}{
+		tx.AccountNonce,
+		tx.Price,
+		tx.GasLimit,
+		tx.Recipient,
+		tx.Amount,
+		tx.Payload,
+		s.chainId, uint(0), uint(0),
+	})
+}
+
 func(s *EIP155) Hash(tx *types.Transaction) common.Hash {
 	return rlpHash([]interface{}{
 		tx.Nonce(),
@@ -51,4 +90,16 @@ func(s *EIP155) Hash(tx *types.Transaction) common.Hash {
 		s.chainId, uint(0), uint(0),
 	})
 }
-	
+
+func(s *EIP155) V(iv int64) *big.Int {
+	iv += 35
+	v := big.NewInt(iv)
+	v.Add(v,s.chainIdMul)
+	return v
+}
+
+func(s *EIP155) IV(v *big.Int) int64 {
+	t := new(big.Int).Set(v)
+	t.Sub(t,s.chainIdMul)
+	return t.Int64() - 35
+}
