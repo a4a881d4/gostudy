@@ -98,7 +98,12 @@ func(curve *ECC) NewPoint(x *big.Int) (*ECPoint) {
   p.Y = *(curve.Sqrt(c))
   return p   
 }
-
+func(curve *ECC) SetPoint(x *ECPoint) (*ECPoint) {
+  p := new(ECPoint)
+  p.X = x.X
+  p.Y = x.Y
+  return p   
+}
 func(curve *ECC) PointAdd(Q,P *ECPoint) (*ECPoint) {
   if(P == nil) {
     return Q
@@ -124,6 +129,12 @@ func(curve *ECC) PointAdd(Q,P *ECPoint) (*ECPoint) {
   return R
 }
 
+func(curve *ECC) PointSub(Q,P *ECPoint) (*ECPoint) {
+  nP := new(ECPoint)
+  nP.X = P.X
+  (&nP.Y).Sub(&curve.N,&P.Y)
+  return curve.PointAdd(Q,nP)
+}
 func(curve *ECC) PointTwice(Q *ECPoint) (*ECPoint) {
   if(Q == nil) {
     return nil
@@ -145,7 +156,7 @@ func(curve *ECC) PointScale(Q *ECPoint, N *big.Int) (*ECPoint) {
   var R *ECPoint
   n := new(big.Int)
   n.Set(N)
-  g := &curve.G
+  g := curve.SetPoint(Q)
   for {
     if(big.NewInt(0).Cmp(n) == 0) {
       break

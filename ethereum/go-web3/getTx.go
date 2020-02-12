@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"bytes"
+	"math/big"
 
 	"encoding/json"
 	"encoding/hex"
@@ -52,6 +53,9 @@ func main() {
 	if tx, err := ext.GetTransactionByHash(os.Args[1]); err == nil {
 		json,_ := tx.MarshalJSON()
 		fmt.Println(string(json))
+		signer := types.NewEIP155Signer(big.NewInt(931))
+		hash := signer.Hash(tx)
+		fmt.Println("EIP155 hash",hash.Hex())
 	} else {
 		fmt.Println(err)
 	}
