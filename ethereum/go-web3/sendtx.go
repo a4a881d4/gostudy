@@ -46,7 +46,7 @@ func main() {
 		transaction := new(dto.TransactionParameters)
 		transaction.From = coinbase
 		transaction.To = addr
-		transaction.Value = big.NewInt(0).Mul(big.NewInt(1), big.NewInt(1E18))
+		transaction.Value = big.NewInt(0).Mul(big.NewInt(10), big.NewInt(1E18))
 		transaction.Gas = big.NewInt(400000)
 		transaction.Data = types.ComplexString("p2p transaction")
 

@@ -83,7 +83,7 @@ func(ext *Web3Ext) GetTransactionByHash(hash string) (*types.Transaction, error)
 	}
 }
 
-func(ext *Web3Ext) SendCoin(toString string, value *big.Int, keyString string, data []byte, config *Web3Config) error {
+func(ext *Web3Ext) SendCoin(txC uint64, toString string, value *big.Int, keyString string, data []byte, config *Web3Config) (uint64,error) {
 	if config == nil {
 		config = defaultConfig
 	}
@@ -96,21 +96,27 @@ func(ext *Web3Ext) SendCoin(toString string, value *big.Int, keyString string, d
 	
 	bal,err := ext.connection.Eth.GetBalance(from, block.LATEST)
 	if err != nil {
-		return err
+		return 0,err
 	}
 	
 	if value.Cmp(bal) > 0 {
-		return noEnoughCoin
+		return 0,noEnoughCoin
 	}
 
 	txCount,err := ext.connection.Eth.GetTransactionCount(from, block.LATEST)
 	if err != nil {
-		return err
+		return 0,err
 	}
 
 	e155 := eip155.NewEIP155(config.ChainID)
 	to := common.HexToAddress(toString)
-	tx := eip155.NewTransaction(txCount.Uint64()+1,&to,value,config.GasLimit,config.Price,data)
+	var tx *eip155.Transaction
+	if txC != 0 {
+		tx = eip155.NewTransaction(txC,&to,value,config.GasLimit,config.Price,data)
+	} else {
+		tx = eip155.NewTransaction(txCount.Uint64()+1,&to,value,config.GasLimit,config.Price,data)
+	}
+	
 	// to := common.HexToAddress("0x0caebc448230a6f9a7c998aa8b452ec0ab02aef6")
 	// tx := eip155.NewTransaction(0x12, 
 	// 	&to,
@@ -122,8 +128,8 @@ func(ext *Web3Ext) SendCoin(toString string, value *big.Int, keyString string, d
 	
 	r,s,v := curve.Sign(prK, d, hash.Bytes())
 	tx.R,tx.S,tx.V = r,s,e155.V(v)
-	Q := curve.Recover(r,s,e155.IV(tx.V),hash.Bytes())
-	fmt.Println(curve.PublicKey2Address(Q))
+	// Q := curve.Recover(r,s,e155.IV(tx.V),hash.Bytes())
+	// fmt.Println(curve.PublicKey2Address(Q))
 	raw,_ := rlp.EncodeToBytes(tx)
 	var etx types.Transaction
 	rlp.DecodeBytes(raw,&etx)
@@ -135,9 +141,9 @@ func(ext *Web3Ext) SendCoin(toString string, value *big.Int, keyString string, d
 		fmt.Println(rR)
 	}
 	if json,err := etx.MarshalJSON(); err == nil {
-		fmt.Println(txCount,string(json))
+		fmt.Println(string(json))
 	} else {
-		return err
+		return txCount.Uint64(),err
 	}
-	return nil
+	return txCount.Uint64(),nil
 }
