@@ -153,7 +153,7 @@ func(ext *Web3Ext) DBGetString(k string) (string,error) {
 	params[0] = "block"
 	params[1] = k
 	pointer := &dto.RequestResult{}
-	if err := ext.provider.SendRequest(pointer, "web3", params); err == nil {
+	if err := ext.provider.SendRequest(pointer, "db_getString", params); err == nil {
 		return pointer.ToString()
 	} else {
 		return "", err

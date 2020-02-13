@@ -15,7 +15,7 @@ func main() {
 	// 	fmt.Println(err)
 	// 	fmt.Println(client)
 	// }
-	var connection = web3.NewWeb3(providers.NewIPCProvider(`\\.\pipe\geth.ipc`))
+	var connection = web3.NewWeb3(providers.NewIPCProvider("../ethereum/chain/geth.ipc"))
 	ext := web3ext.NewWeb3Ext(connection.Provider)
 	if ver, err := ext.DBGetString("DatabaseVersion"); err == nil {
 		fmt.Println("Version:",ver)
