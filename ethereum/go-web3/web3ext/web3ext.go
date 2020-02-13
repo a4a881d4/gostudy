@@ -147,3 +147,15 @@ func(ext *Web3Ext) SendCoin(txC uint64, toString string, value *big.Int, keyStri
 	}
 	return txCount.Uint64(),nil
 }
+
+func(ext *Web3Ext) DBGetString(k string) (string,error) {
+	params := make([]string, 2)
+	params[0] = "block"
+	params[1] = k
+	pointer := &dto.RequestResult{}
+	if err := ext.provider.SendRequest(pointer, "web3", params); err == nil {
+		return pointer.ToString()
+	} else {
+		return "", err
+	}
+}
