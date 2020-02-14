@@ -437,7 +437,7 @@ func main() {
   fmt.Println("Version", blob)
 
   var number uint64
-  for number = 0;number<13041+1;number++ { //0x12d8c2 number=1304924 0x1272c2
+  for number = 0;number<14041+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
       data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
@@ -458,15 +458,15 @@ func main() {
             fmt.Printf("hash is %x ",addHash)
             fmt.Println("Cannot find account ",os.Args[2])
           }
-          // for k,v := range(accounts) {
-          //   if v.Root != emptyRoot {
-          //     if code,err := db.Get(v.CodeHash,nil); err==nil {
-          //       fmt.Println("Contract code: ",k[:8],code[:8])
-          //     }
-          //     nop := make(Storage)
-          //     dumpKey(db,v.Root.Bytes(),0,[]byte{},nop)
-          //   }
-          // }
+          for k,v := range(accounts) {
+            if v.Root != emptyRoot {
+              if code,err := db.Get(v.CodeHash,nil); err==nil {
+                fmt.Println("Contract code: ",k[:8],code[:8])
+              }
+              nop := make(Storage)
+              dumpKey(db,v.Root.Bytes(),0,[]byte{},nop)
+            }
+          }
         }
       }
     }
