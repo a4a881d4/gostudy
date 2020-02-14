@@ -152,11 +152,14 @@ func(ext *Web3Ext) DBGetString(k string) (string,error) {
 	}
 }
 
-func(ext *Web3Ext) SendTransaction(tx *eip155.Transaction, si *eip155.Signer) error {
-	
+func(ext *Web3Ext) SendTransaction(tx *eip155.Transaction, si eip155.Signer, config *Web3Config) error {
+	if config == nil {
+		config = defaultConfig
+	}	
+	e155 := eip155.NewEIP155(config.ChainID)
 	hash := e155.HashExt(tx)
 	
-	tx.R,tx.S,tx.V = si.Sign(hash)
+	tx.Signature = *si.Sign(hash.Bytes())
 
 	raw,_ := rlp.EncodeToBytes(tx)
 	
@@ -171,6 +174,6 @@ func(ext *Web3Ext) SendTransaction(tx *eip155.Transaction, si *eip155.Signer) er
 	} else {
 		fmt.Println(rR)
 	}
-	
+
 	return err
 }

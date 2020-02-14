@@ -23,29 +23,30 @@ type EIP155Signer struct{
 }
 
 func(e155 *EIP155) NewEIP155Signer(ec *ecc.ECC, key string) *EIP155Signer {
+	k,_ := big.NewInt(0).SetString(key,16)
 	return &EIP155Signer{
-		c:   ecc,
-		prK: big.NewInt(0).SetString(keyString,16),
-		e: e155,	
+		c:   ec,
+		prK: k,
+		e:   e155,	
 	}
 }
 
 func(s *EIP155Signer) BuildKey() {
-	s.puK = s.c.PointScale(s.c.G,s.prK)
+	s.puK = s.c.PointScale(&s.c.G,s.prK)
 }
 
 func(s *EIP155Signer) Sign(hash []byte) *Signature {
-	r,s,v := s.c.Sign(s.prK,big.NewInt(0))
+	R,S,v := s.c.Sign(s.prK,big.NewInt(0),hash)
 	return &Signature{
-		R: r,
-		S: s,
-		V: 
+		R: R,
+		S: S,
+		V: s.e.V(v),
 	}
 }
 
 func(s *EIP155Signer) Verify(si *Signature, hash []byte) (bool,string) {
 	s.prK = big.NewInt(0)
-	s.puK = s.c.Recover(r,s,v,hash)
-	ok := s.c.Verify(s.puK, r, s)
+	s.puK = s.c.Recover(si.R, si.S, s.e.IV(si.V), hash)
+	ok := s.c.Verify(s.puK,si.R,si.S,hash)
 	return ok,"0x"+s.c.PublicKey2Address(s.puK)
 }

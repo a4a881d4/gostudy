@@ -26,13 +26,15 @@ func(ext *Web3Ext) NewContract(abiJson []byte) (*ContractExt, error) {
 	}
 }
 
-func (contract *ContractExt) Call(transaction *eip155.Transaction, functionName string, args ...interface{}) (*dto.RequestResult, error) {
+/*
+func (contract *ContractExt) Call(tx *eip155.Transaction, functionName string, args ...interface{}) (*dto.RequestResult, error) {
 
 	data,err := contract.Abi.Pack(functionName,args)
 	if err != nil {
 		return nil,err
 	}
-	
+
 	tx.Payload = data
 	return contract.Web3.Call(transaction)
 }
+*/
