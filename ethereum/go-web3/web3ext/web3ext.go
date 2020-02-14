@@ -92,7 +92,6 @@ func(ext *Web3Ext) SendCoin(txC uint64, toString string, value *big.Int, keyStri
 	prK := big.NewInt(0)
 	prK.SetString(keyString,16)	
 	from := "0x"+curve.PrivateKey2Address(prK)
-
 	
 	bal,err := ext.connection.Eth.GetBalance(from, block.LATEST)
 	if err != nil {
@@ -117,19 +116,12 @@ func(ext *Web3Ext) SendCoin(txC uint64, toString string, value *big.Int, keyStri
 		tx = eip155.NewTransaction(txCount.Uint64()+1,&to,value,config.GasLimit,config.Price,data)
 	}
 	
-	// to := common.HexToAddress("0x0caebc448230a6f9a7c998aa8b452ec0ab02aef6")
-	// tx := eip155.NewTransaction(0x12, 
-	// 	&to,
-	// 	big.NewInt(0).Mul(big.NewInt(1), big.NewInt(1E18)), 
-	// 	config.GasLimit,config.Price, []byte("p2p transaction"))
-	// d,_ := new(big.Int).SetString("2acbf03c5e393cde014666cb29a1079ab01f5429fb8e8cae36c873a48640a9c9",16)
 	d := big.NewInt(0)
 	hash := e155.HashExt(tx)
 	
 	r,s,v := curve.Sign(prK, d, hash.Bytes())
 	tx.R,tx.S,tx.V = r,s,e155.V(v)
-	// Q := curve.Recover(r,s,e155.IV(tx.V),hash.Bytes())
-	// fmt.Println(curve.PublicKey2Address(Q))
+
 	raw,_ := rlp.EncodeToBytes(tx)
 	var etx types.Transaction
 	rlp.DecodeBytes(raw,&etx)
@@ -158,4 +150,27 @@ func(ext *Web3Ext) DBGetString(k string) (string,error) {
 	} else {
 		return "", err
 	}
+}
+
+func(ext *Web3Ext) SendTransaction(tx *eip155.Transaction, si *eip155.Signer) error {
+	
+	hash := e155.HashExt(tx)
+	
+	tx.R,tx.S,tx.V = si.Sign(hash)
+
+	raw,_ := rlp.EncodeToBytes(tx)
+	
+	var etx types.Transaction
+	rlp.DecodeBytes(raw,&etx)
+	rawString := "0x"+common.Bytes2Hex(raw)
+	
+	rR,err := ext.SendRawTransaction(rawString)
+	
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(rR)
+	}
+	
+	return err
 }

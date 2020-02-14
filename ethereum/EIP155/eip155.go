@@ -23,9 +23,10 @@ type Transaction struct {
 	Payload      []byte
 
 	// Signature values
-	V *big.Int
-	R *big.Int
-	S *big.Int
+	// V *big.Int
+	// R *big.Int
+	// S *big.Int
+	Signature
 }
 
 func NewEIP155(cID int64) EIP155 {
@@ -103,3 +104,4 @@ func(s *EIP155) IV(v *big.Int) int64 {
 	t.Sub(t,s.chainIdMul)
 	return t.Int64() - 35
 }
+

@@ -1,5 +1,5 @@
 
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.0;
 
 contract EIP20Interface {
     /* This is a slight change to the ERC20 base standard.
