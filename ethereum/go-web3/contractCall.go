@@ -27,6 +27,7 @@ func main() {
 	
 	result, err := contract.Call(transaction, "name")
 
+
 	if err != nil {
 		fmt.Println(err)
 	}
