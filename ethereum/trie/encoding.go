@@ -89,7 +89,9 @@ func keybytesToHex(str []byte) []byte {
 // 	decodeNibbles(hex, key)
 // 	return key
 // }
-
+func HexToKey(hex []byte) []byte {
+	return hexToKeybytes(hex)
+}
 func hexToKeybytes(hex []byte) []byte {
   if hasTerm(hex) {
     hex = hex[:len(hex)-1]

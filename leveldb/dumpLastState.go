@@ -112,11 +112,16 @@ func main() {
 			root,err := dumpKey(db,h.Root.Bytes())
 			if err == nil {
 				// root.Travel(printNode())
-				// var a Account
-				// root.Travel(findAccount(os.Args[3],&a))
-				// fmt.Println(a.String())
-				// root.Travel(Accounts())
-				findHash(root.(*trie.FullNode),os.Args[3])
+				var a Account
+				fmt.Println("Wide first find")
+				root.Travel(findAccount(os.Args[3],&a))
+				fmt.Println(a.String())
+				fmt.Println("Deep first find")
+				root.DeepTravel(Accounts(os.Args[3],&a),[]byte{})
+				fmt.Println(a.String())
+				fmt.Println("Direct find")
+				findHash(root.(*trie.FullNode),os.Args[3],&a)
+				fmt.Println(a.String())
 				break
 			} else {
 				fmt.Println(err)
@@ -125,16 +130,14 @@ func main() {
 	}
 }
 
-func findHash(root *trie.FullNode, addr string) {
-	var a Account
+func findHash(root *trie.FullNode, addr string, a *Account) {
 	address,_ := hex.DecodeString(addr)
 	addHash := crypto.Keccak256Hash(address[:])
 	if n,err := root.Find(addHash.Bytes()); err!=nil {
 		fmt.Println(err)
 	} else {
 		sn := n.(*trie.ShortNode)
-		rlp.DecodeBytes(sn.Val.(trie.ValueNode),&a)
-		fmt.Println(a.String())
+		rlp.DecodeBytes(sn.Val.(trie.ValueNode),a)
 	}
 }
 
@@ -144,12 +147,15 @@ func printNode() func(trie.Node) {
 	}
 }
 
-func Accounts() func(trie.Node) {
-	return func(node trie.Node) {
+func Accounts(addr string, a *Account) func(trie.Node,[]byte) {
+	address,_ := hex.DecodeString(addr)
+	addHash := crypto.Keccak256Hash(address[:])
+	addHashStr := common.Bytes2Hex(addHash.Bytes())
+	return func(node trie.Node,args []byte) {
 		if vn,ok := node.(trie.ValueNode); ok {
-			var a Account
-			if err:= rlp.DecodeBytes(vn,&a); err==nil {
-				fmt.Println(a.String())
+			hashStr := common.Bytes2Hex(trie.HexToKey(args))
+			if hashStr == addHashStr {
+				rlp.DecodeBytes(vn,a)
 			}
 		}
 	}

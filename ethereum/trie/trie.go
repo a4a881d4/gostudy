@@ -15,6 +15,7 @@ type Node interface {
 	fstring(string) string
 	String() string
 	Travel(fn func(Node))
+	DeepTravel(func(Node,[]byte),[]byte)
 }
 
 type (
@@ -84,6 +85,27 @@ func(n HashNode) Travel(fn func(Node)) {
 
 func(n ValueNode) Travel(fn func(Node)) {
 	fn(n)
+}
+func(n *FullNode) DeepTravel(fn func(Node,[]byte),args []byte) {
+	fn(n,args)
+	for k,v := range(n.Children) {
+		if v != nil {
+			v.DeepTravel(fn,append(args,byte(k)))
+		}
+	}
+}
+
+func(n *ShortNode) DeepTravel(fn func(Node,[]byte),args []byte) {
+	fn(n,args)
+	n.Val.DeepTravel(fn,append(args,n.Key...))
+}
+
+func(n HashNode) DeepTravel(fn func(Node,[]byte),args []byte) {
+	fn(n,args)
+}
+
+func(n ValueNode) DeepTravel(fn func(Node,[]byte),args []byte) {
+	fn(n,args)
 }
 
 func(n *ShortNode) HashKey() []byte {
