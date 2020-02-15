@@ -41,27 +41,27 @@ func main() {
 	transaction.Gas = big.NewInt(3000000)
 	transaction.To = os.Args[2]
 
-	for i:=0;i<32;i++ {
+	for i:=0;i<4096;i++ {
 		to := curve.PrivateKey2Address(prK)
-		hash, err := contract.Do(transaction, "transfer", common.HexToAddress(to), big.NewInt(1000_000_000))
+		_, err := contract.Do(transaction, "transfer", common.HexToAddress(to), big.NewInt(1000_000_000))
 
 		if err != nil {
 			fmt.Println(err)
-			panic("Deploy failure")
+			panic("Do failure")
 		}
 
-		var receipt *dto.TransactionReceipt
+		// var receipt *dto.TransactionReceipt
 
-		for receipt == nil {
-			receipt, err = connection.Eth.GetTransactionReceipt(hash)
-		}
+		// for receipt == nil {
+		// 	receipt, err = connection.Eth.GetTransactionReceipt(hash)
+		// }
 
-		if err != nil {
-			fmt.Println(err)
-			panic("Receipt Failure")
-		}
+		// if err != nil {
+		// 	fmt.Println(err)
+		// 	panic("Receipt Failure")
+		// }
 
-		fmt.Println("receipt: ", receipt)
+		// fmt.Println("receipt: ", receipt)
 		prK.Add(prK,big.NewInt(1))
 	}
 }
