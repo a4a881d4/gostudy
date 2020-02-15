@@ -102,6 +102,7 @@ type node interface {
   fstring(string) string
   cache() (hashNode, bool)
   canUnload(cachegen, cachelimit uint16) bool
+  String() string
 }
 
 type (
@@ -414,6 +415,10 @@ func decodeNibbles(nibbles []byte, bytes []byte) {
 
 func dumpKey(db *leveldb.DB, hash []byte, depth int, s []byte,accounts Storage) error {
   n,err := decodeHash(db,hash,0)
+  if n!=nil {
+    fmt.Println("dumpKey",depth,n.String())
+  }
+  
   if err==nil {
     dump(db,n,depth,s,accounts)
   } 
@@ -440,9 +445,17 @@ func main() {
   for number = 0;number<14041+1;number++ { //0x12d8c2 number=1304924 0x1272c2
     
     if blob,err := db.Get(headerHashKey(number),nil); err == nil {
-      data, _ := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
+      
+      data, err := db.Get(headerKey(number, common.BytesToHash(blob)),nil)
+      if err != nil {
+        fmt.Println(number,"hash not in db",err)
+      } 
+
       var h types.Header
       if err := rlp.DecodeBytes(data, &h); err == nil {
+        // hjson,_ := h.MarshalJSON()
+        // fmt.Println("===========Head of Block",number,"==================")
+        // fmt.Println(string(hjson))
         accounts := make(Storage)
         if err := dumpKey(db,h.Root.Bytes(),0,[]byte{},accounts); err == nil {
           count := 0
@@ -468,8 +481,8 @@ func main() {
             }
           }
         }
-      }
-    }
+      } 
+    } 
   }
   db.Close()
 }
