@@ -3,6 +3,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -88,6 +89,44 @@ func(n ValueNode) Travel(fn func(Node)) {
 func(n *ShortNode) HashKey() []byte {
 	var s []byte
 	return hexToKeybytes(append(s,n.Key...))
+}
+
+func(n *FullNode) Find(hash []byte) (Node,error) {
+	hex := keybytesToHex(hash)
+	var t Node
+	var p int
+	for t,p = n,0; t!=nil && p<len(hex); {
+		switch tn := t.(type){
+		case *FullNode:
+			ip := int(hex[p])
+			if tn.Children[ip] == nil {
+				return nil,errors.New("F not find")
+			}
+			t = tn.Children[ip]
+			p++
+		case *ShortNode:
+			l  := prefixLen(hex[p:],tn.Key)
+			switch l {
+			case 0:
+				return nil,errors.New("S not find")
+			case 1:
+				if len(tn.Key)!=1 {
+					return nil,errors.New("1 not find")
+				}
+				t = tn.Val
+				p++
+			case len(tn.Key):
+				return t,nil
+			default:
+				return nil,errors.New("D not find")	
+			}
+		case HashNode:
+			return nil,errors.New("Hash Node")
+		case ValueNode:
+			return nil,errors.New("Value Node")
+		}
+	}
+	return nil,errors.New("Value Node")
 }
 
 func DecodeNode(hash,buf []byte) (Node,error) {

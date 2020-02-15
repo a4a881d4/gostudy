@@ -67,7 +67,7 @@ func headerKey(number uint64, hash common.Hash) []byte {
 func headerHashKey(number uint64) []byte {
   return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
 }
-//go run .\leveldb\dumpLastState.go E:\work-ref\copydb\chaindata 13000
+//go run .\leveldb\dumpLastState.go E:\work-ref\copydb\chaindata 13000 90411f4e2F264D1BF417B54C6041c6ACddabF60C
 func main() {
 
 	blockNum,err := strconv.Atoi(os.Args[2])
@@ -111,15 +111,30 @@ func main() {
 		if _,err = db.Get(h.Root.Bytes(),nil); err == nil {
 			root,err := dumpKey(db,h.Root.Bytes())
 			if err == nil {
-				root.Travel(printNode())
+				// root.Travel(printNode())
 				// var a Account
-				// root.Travel(findAccount("bfadc8b8497d4db8abf422abc7814a90e29f6e08",&a))
+				// root.Travel(findAccount(os.Args[3],&a))
 				// fmt.Println(a.String())
+				// root.Travel(Accounts())
+				findHash(root.(*trie.FullNode),os.Args[3])
 				break
 			} else {
 				fmt.Println(err)
 			}	
 		}
+	}
+}
+
+func findHash(root *trie.FullNode, addr string) {
+	var a Account
+	address,_ := hex.DecodeString(addr)
+	addHash := crypto.Keccak256Hash(address[:])
+	if n,err := root.Find(addHash.Bytes()); err!=nil {
+		fmt.Println(err)
+	} else {
+		sn := n.(*trie.ShortNode)
+		rlp.DecodeBytes(sn.Val.(trie.ValueNode),&a)
+		fmt.Println(a.String())
 	}
 }
 
@@ -129,16 +144,29 @@ func printNode() func(trie.Node) {
 	}
 }
 
+func Accounts() func(trie.Node) {
+	return func(node trie.Node) {
+		if vn,ok := node.(trie.ValueNode); ok {
+			var a Account
+			if err:= rlp.DecodeBytes(vn,&a); err==nil {
+				fmt.Println(a.String())
+			}
+		}
+	}
+}
 func findAccount(addr string, a *Account) func(trie.Node) {
 	address,_ := hex.DecodeString(addr)
 	addHash := crypto.Keccak256Hash(address[:])
 	addHashStr := common.Bytes2Hex(addHash.Bytes())
+	cut := addHashStr[len(addHashStr)-20:]
 	r := func(n trie.Node) {
 		if sn,ok := n.(*trie.ShortNode); ok {
 			keyStr := common.Bytes2Hex(sn.HashKey())
-			fmt.Println(addHashStr,keyStr)
-			if  addHashStr == keyStr {
-				rlp.DecodeBytes(sn.Val.(trie.ValueNode),a)
+			if len(keyStr)>20 {
+				keyCut := keyStr[len(keyStr)-20:]
+				if  cut == keyCut {
+					rlp.DecodeBytes(sn.Val.(trie.ValueNode),a)
+				}
 			}
 		}
 	}
