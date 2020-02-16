@@ -111,22 +111,37 @@ func main() {
 		if _,err = db.Get(h.Root.Bytes(),nil); err == nil {
 			root,err := dumpKey(db,h.Root.Bytes())
 			if err == nil {
-				// root.Travel(printNode())
-				var a Account
-				fmt.Println("Wide first find")
-				root.Travel(findAccount(os.Args[3],&a))
-				fmt.Println(a.String())
-				fmt.Println("Deep first find")
-				root.DeepTravel(Accounts(os.Args[3],&a),[]byte{})
-				fmt.Println(a.String())
-				fmt.Println("Direct find")
-				findHash(root.(*trie.FullNode),os.Args[3],&a)
-				fmt.Println(a.String())
+				if len(os.Args)<4 {
+					root.Travel(printNode())
+					root.Travel(dumpAccount())
+				} else {
+					var a Account
+					fmt.Println("Wide first find")
+					root.Travel(findAccount(os.Args[3],&a))
+					fmt.Println(a.String())
+					fmt.Println("Deep first find")
+					root.DeepTravel(Accounts(os.Args[3],&a),[]byte{})
+					fmt.Println(a.String())
+					fmt.Println("Direct find")
+					findHash(root.(*trie.FullNode),os.Args[3],&a)
+					fmt.Println(a.String())
+				}
 				break
 			} else {
 				fmt.Println(err)
 			}	
 		}
+	}
+}
+
+func dumpAccount() func(trie.Node) {
+	return func(node trie.Node) {
+		var a Account
+		if vn,ok := node.(trie.ValueNode); ok {
+			if err := rlp.DecodeBytes(vn,&a); err == nil {
+				fmt.Println(a.String())
+			}
+		}	
 	}
 }
 
@@ -160,6 +175,7 @@ func Accounts(addr string, a *Account) func(trie.Node,[]byte) {
 		}
 	}
 }
+
 func findAccount(addr string, a *Account) func(trie.Node) {
 	address,_ := hex.DecodeString(addr)
 	addHash := crypto.Keccak256Hash(address[:])
