@@ -70,6 +70,7 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		} else {
+			fmt.Printf("%5d. ",i)
 			fmt.Println("balance of",addr.Hex(),*result.(**big.Int))
 		}
 		prK.Add(prK,big.NewInt(1))
