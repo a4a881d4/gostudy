@@ -16,7 +16,7 @@ func main() {
 	passphrase := os.Args[3]
 	fmt.Println("Import private key: ",privkey.Text(16)," to key store: ",dir," passphrase: ",passphrase)
 
-	for i:=0; i < 16; i++ {
+	for i:=0; i < 32; i++ {
 		if pk,err := crypto.ToECDSA(privkey.Bytes()); err!=nil {
 			fmt.Println(err)
 		} else {
